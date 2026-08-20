@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ record['userId'] }} &middot; OMP{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Edit user</h1>
+      <p class="subtitle">
+        <span class="mono">{{ record['userId'] }}</span> &mdash; {{ record['alias'] or 'no alias' }}
+      </p>
+    </div>
+    <a class="tool" href="{{ url_for('admin.table', page_key='all-users') }}">Back to All Users</a>
+  </div>
+
+  <form class="edit-form" method="post">
+    <div class="field-grid">
+
+      <label class="field readonly">
+        <span class="field-label">userId <em>read-only</em></span>
+        <input type="text" value="{{ record['userId'] }}" disabled>
+      </label>
+
+      <label class="field readonly">
+        <span class="field-label">ml_pct <em>calculated</em></span>
+        <input type="text" id="mlPct" value="{{ record['ml_pct'] if record['ml_pct'] is not none }}"
+               placeholder="max_loss / allocation" disabled>
+      </label>
+
+      {% for col in columns %}
+        {% set name = col.name %}
+        {% set value = record[name] %}
+
+        {% if name == 'Running Type' or name == 'Running Days' %}
+          {% set options = running_type_options if name == 'Running Type' else running_days_options %}
+          <label class="field">
+            <span class="field-label">{{ name }}</span>
+            <select name="{{ name }}" data-linked="1">
+              <option value="">&mdash;</option>
+              {% for option in options %}
+                <option value="{{ option }}"
+                  {% if value and value|string|lower == option|lower %}selected{% endif %}>
+                  {{ option }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+
+        {% elif name == 'server' %}
+          <label class="field">
+            <span class="field-label">server</span>
+            <select name="server" data-linked="1">
+              <option value="">&mdash;</option>
+              {% for option in server_options %}
+                <option value="{{ option }}"
+                  {% if value and value|string|lower == option|lower %}selected{% endif %}>
+                  {{ option }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+
+        {% else %}
+          <label class="field">
+            <span class="field-label">{{ name }}</span>
+            <input type="{{ 'number' if col.numeric else 'text' }}"
+                   {% if col.numeric %}step="any"{% endif %}
+                   {% if col.maxlength %}maxlength="{{ col.maxlength }}"{% endif %}
+                   name="{{ name }}" id="f_{{ name | replace(' ', '_') | replace('(', '') | replace(')', '') }}"
+                   value="{{ value if value is not none }}">
+          </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <p class="edit-note" id="linkNote" hidden></p>
+
+    <div class="edit-actions">
+      <a class="tool" href="{{ url_for('admin.table', page_key='all-users') }}">Cancel</a>
+      <button class="btn-primary" type="submit">Save changes</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    window.OMP_EDIT = {
+      inactiveStates: {{ inactive_states | list | tojson }},
+      linkedFields: ["server", "Running Type", "Running Days"]
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/edit_user.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,127 @@
+{# Shared shell for every signed-in page. Roles extend this and fill blocks. #}
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}OMP{% endblock %}</title>
+  {# Applied before first paint so the saved theme does not flash. #}
+  <script>
+    (function () {
+      var t = localStorage.getItem("omp-theme") || "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  {# CSS-only mobile nav: the checkbox drives the dropdown, no JS needed. #}
+  <input type="checkbox" id="navToggle" class="nav-toggle-state" hidden>
+
+  <header class="navbar">
+    <a class="brand" href="{{ url_for('admin.dashboard') }}">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 17h2v4H3zM7 9h2v12H7zM11 13h2v8h-2zM15 5h2v16h-2zM19 11h2v10h-2z"/>
+      </svg>
+      <span>MegaServe OMP</span>
+    </a>
+
+    <nav class="nav">
+      {% block nav %}
+      <a class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}"
+         href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+      {% for key, cfg in table_pages.items() %}
+        <a class="nav-item {% if page_key == key %}active{% endif %}"
+           href="{{ url_for('admin.table', page_key=key) }}">{{ cfg.title }}</a>
+      {% endfor %}
+      {% endblock %}
+    </nav>
+
+    <div class="nav-right">
+      <span class="welcome">Welcome, <b>{{ session.get('name') }}</b>!</span>
+      {# <details> gives native click-to-open; JS only closes it on outside click. #}
+      <details class="settings" id="settingsMenu">
+        <summary class="btn-settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/>
+            <path d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L14.9 3H9.1l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L2.6 11a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.8 1.7 1l.4 2.6h5.8l.4-2.6c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.4z"/>
+          </svg>
+          <span>Settings</span>
+        </summary>
+
+        <div class="menu">
+          <div class="menu-title">Settings</div>
+
+          <a class="menu-item disabled" href="#" title="Not built yet">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
+            </svg>
+            Admin Controls
+          </a>
+
+          {% if session.get('role') == 'superadmin' %}
+            <a class="menu-item {% if request.endpoint == 'superadmin.msusers' %}current{% endif %}"
+               href="{{ url_for('superadmin.msusers') }}">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="9" cy="8" r="3.2"/>
+                <path d="M2.5 20a6.5 6.5 0 0 1 13 0"/>
+                <path d="M17 8h5M19.5 5.5v5"/>
+              </svg>
+              MSUsers
+            </a>
+          {% endif %}
+
+          <a class="menu-item disabled" href="#" title="Not built yet">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="3.4"/>
+              <path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+            </svg>
+            Profile Settings
+          </a>
+
+          <a class="menu-item {% if request.endpoint == 'admin.uploads' %}current{% endif %}"
+             href="{{ url_for('admin.uploads') }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 17V5M7 10l5-5 5 5M4 20h16"/>
+            </svg>
+            Uploads
+          </a>
+
+          <a class="menu-logout" href="{{ url_for('auth.logout') }}">Log Out</a>
+        </div>
+      </details>
+      <button class="theme-toggle" id="themeToggle" type="button" title="Toggle theme"
+              aria-label="Toggle light and dark theme">
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
+        </svg>
+      </button>
+      <label class="nav-burger" for="navToggle" title="Menu" aria-label="Open menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </label>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flashes">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

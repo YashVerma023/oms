@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Uploads &middot; OMP{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Uploads</h1>
+      <p class="subtitle">Each table has its own upload. Columns not present in
+        the target table are ignored; unparseable values are stored as NULL and
+        listed in the report.</p>
+    </div>
+  </div>
+
+  <div class="upload-grid">
+    {% for key, spec in specs.items() %}
+      <form class="upload-card {% if report and report.target == key %}active{% endif %}"
+            method="post" enctype="multipart/form-data"
+            action="{{ url_for('admin.uploads') }}">
+        <input type="hidden" name="target" value="{{ key }}">
+
+        <div class="upload-card-head">
+          <h2>{{ spec.title }}</h2>
+          <span class="target-mode {{ spec.mode }}">
+            {{ 'Replaces all rows' if spec.mode == 'replace' else 'Appends snapshot' }}
+          </span>
+        </div>
+
+        <input class="file-input" type="file" name="file" required
+               accept="{{ spec.accept | join(',') }}"
+               {% if spec.multiple %}multiple{% endif %}>
+        {% if spec.multiple %}
+          <p class="upload-note">Select several files to load them together.</p>
+        {% endif %}
+        <button class="btn-primary" type="submit">Upload {{ spec.title }}</button>
+      </form>
+    {% endfor %}
+  </div>
+
+  {% if report %}
+    <div class="panel report">
+      <div class="report-head">
+        <h2>{{ specs[report.target].title }} &mdash; {{ report.filename }}</h2>
+        <div class="report-stats">
+          <span class="stat-pill ok">{{ report.loaded }} loaded</span>
+          {% if report.skipped %}<span class="stat-pill warn">{{ report.skipped }} skipped</span>{% endif %}
+          <span class="stat-pill">{{ report.matched_columns | length }} columns matched</span>
+        </div>
+      </div>
+
+      {% if report.files | length > 1 %}
+        <div class="report-block">
+          <h3>Files ({{ report.files | length }})</h3>
+          <ul>
+            {% for f in report.files %}
+              <li><span class="mono">{{ f.name }}</span> &mdash; {{ f.rows }} row(s)</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      {% if report.ignored_headers %}
+        <div class="report-block">
+          <h3>Ignored sheet columns ({{ report.ignored_headers | length }})</h3>
+          <p class="mono">{{ report.ignored_headers | join(', ') }}</p>
+        </div>
+      {% endif %}
+
+      {% if report.nulled %}
+        <div class="report-block">
+          <h3>Values stored as NULL</h3>
+          <ul>
+            {% for col, count in report.nulled.items() %}
+              <li><span class="mono">{{ col }}</span> &mdash; {{ count }} value(s) unparseable</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      {% if report.issues %}
+        <div class="report-block">
+          <h3>Notes ({{ report.issues | length }})</h3>
+          <ul>
+            {% for issue in report.issues %}<li>{{ issue }}</li>{% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

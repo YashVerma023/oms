@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in &middot; OMP</title>
+  <script>
+    (function () {
+      document.documentElement.setAttribute(
+        "data-theme", localStorage.getItem("omp-theme") || "dark");
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+  <button class="theme-toggle floating" id="themeToggle" type="button"
+          aria-label="Toggle light and dark theme" title="Toggle theme">
+    <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+    </svg>
+    <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4.2"/>
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
+    </svg>
+  </button>
+
+  <form class="login-card" method="post" action="{{ url_for('auth.login') }}">
+    <div class="login-head">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 17h2v4H3zM7 9h2v12H7zM11 13h2v8h-2zM15 5h2v16h-2zM19 11h2v10h-2z"/>
+        </svg>
+        <span>MegaServe OMP</span>
+      </div>
+      <p class="subtitle">Operations Management Portal</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" value="{{ email }}"
+           placeholder="you@megaserve.tech" required autofocus autocomplete="username">
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password"
+           placeholder="••••••••" required autocomplete="current-password">
+
+    <button type="submit">Sign in</button>
+  </form>
+
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

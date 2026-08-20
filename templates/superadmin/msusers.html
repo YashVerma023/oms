@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}MSUsers &middot; OMP{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>MSUsers</h1>
+      <p class="subtitle">Portal logins and their roles.</p>
+    </div>
+    <button class="btn-primary" type="button" id="btnAddUser">Add user</button>
+  </div>
+
+  {# Hidden until Add user is clicked; stays open if the submit failed. #}
+  <form class="add-user{% if get_flashed_messages(category_filter=['error']) %} open{% endif %}"
+        id="addUserForm" method="post" action="{{ url_for('superadmin.msusers') }}">
+    <div class="field-grid">
+      <label class="field">
+        <span class="field-label">Role</span>
+        <select name="role" required>
+          {% for role in roles %}
+            <option value="{{ role }}" {% if role == 'operator' %}selected{% endif %}>{{ role }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Name</span>
+        <input type="text" name="name" maxlength="120" required autocomplete="off">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Email</span>
+        <input type="email" name="email" maxlength="190" required autocomplete="off">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input type="text" name="password" maxlength="255" required autocomplete="new-password">
+      </label>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" type="button" id="btnCancelUser">Cancel</button>
+      <button class="btn-primary" type="submit">Create user</button>
+    </div>
+  </form>
+
+  <div class="panel">
+    <div class="table-scroll">
+      <table class="grid">
+        <thead>
+          <tr class="head-row">
+            <th>Role</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Password</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+            <tr>
+              <td><span class="chip">{{ user.role }}</span></td>
+              <td>{{ user.name }}</td>
+              <td class="mono">{{ user.email }}</td>
+              <td class="mono">{{ user.password }}</td>
+              <td class="mono">{{ user.created_at }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if not users %}
+      <div class="table-empty">No logins yet.</div>
+    {% endif %}
+  </div>
+
+  <p class="as-of">{{ users | length }} login(s).</p>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    (function () {
+      var form = document.getElementById("addUserForm");
+      document.getElementById("btnAddUser").addEventListener("click", function () {
+        form.classList.add("open");
+        var first = form.querySelector('input[name="name"]');
+        if (first) first.focus();
+      });
+      document.getElementById("btnCancelUser").addEventListener("click", function () {
+        form.classList.remove("open");
+        form.reset();
+      });
+    })();
+  </script>
+{% endblock %}

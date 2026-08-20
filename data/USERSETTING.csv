@@ -1,0 +1,28 @@
+# Please fill all values carefully. ANY VALUE WHICH IS NOT REQUIRED CAN BE LEFT BLANK.
+# For Boolean, True / False OR Yes / No can be used.
+# For NRML SqOff, 0 = None, 1 = All, 2 = Today
+# For Time, enter like 15:15:00.
+# Password & PIN: These are only required if you have selected for Auto Login. Auto login internally fills user details in browser for easy login. It is totally optional feature.
+# Broker: Zerodha, AliceBlue etc.
+Enabled,User Alias,User ID,Broker,API Key,API Secret,Historical API,SquareOff Time,Auto Login,Password,Pin,Max Profit,Max Loss,Qty on MaxLoss PerTrade,Max Loss Per Trade,Max Open Trades,Telegram ID(s),Email,Qty Multiplier,Trading Authorization Req,SqOff NRML Orders,Qty By Exposure,API User Details,SqOff CNC Orders,ProfitLocking,MaxLossWaitSec,TwoFA,LIMIT Only, LIMIT Type,LIMIT Spread,MaxModifications,LimitModificationGapTime,API Version,Proxy,OrderPerSecond,MaxChaseLimit,Remarks
+True,NOREN_DEALER,X7RIK01,MasterTrust_Dealer,X7RIK01,hhh33T2A7hzRrxdVqzDXR599v8q5yehs,False,00:00:00,False,Abc@123,,0,0,False,0,0,,,1,False,1,0,X7RIK01 (R7RA1322),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,
+True,FEED,ZG0636,Zerodha,6gox1i2l66p3kedr,fv5bj5zbeerdz9a345c5mo7kuf3z62lu,False,00:00:00,True,smart123Z,AAYQAZDUQQOJJJSPWLXKB6PNX7YUJ447,0,0,False,0,0,,,1,False,1,0,Vivek Thebaria (ZG0636),False,0~0~0~0,0,,False,BidAsk,0,0,0,,,0,0,
+True,MSR_GINNI12_3C,7RA1SP74,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RA1SP74 (7RA1SP74),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_GINNI13_3C,7RA1KP76,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RA1KP76 (7RA1KP76),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_SSGUPTA4,R7RA1315,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,R7RA1315 (R7RA1315),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_RYS2_3C,B7RA1RL35,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,B7RA1RL35 (B7RA1RL35),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_RAJM8_3C,R7RA1322,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,R7RA1322 (R7RA1322),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_INDALPHA2,7RIK2021,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RIK2021 (7RIK2021),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_LOKESHGARG_3C,7RA110119,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RA110119 (7RA110119),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_MSMELODIA7_3C,7RA110080,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RA110080 (7RA110080),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSP_PGFOILS_8C,7RA1PG011,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,560000,False,0,0,,,1,False,1,0,7RA1PG011 (7RA1PG011),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,400000
+True,MSR_KABRA2,7RIK2014,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RIK2014 (7RIK2014),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_MSMELODIA4,7RA110084,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RA110084 (7RA110084),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_CHETAN_SINGHAL2,7RIK2031,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RIK2031 (7RIK2031),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_PYADAV1,7RIK2055,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RIK2055 (7RIK2055),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_JITENDRA_AGRAWAL5,7RIKPL01,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,1234596,,0,140000,False,0,0,,,1,False,1,0,7RIKPL01 (7RIKPL01),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_DIGVIJAY5,7RIKML02,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,123456,,0,140000,False,0,0,,,1,False,1,0,7RIKML02 (7RIKML02),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_SHREYAB1_5C,7RIK2045,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,12345,,0,280000,False,0,0,,,1,False,1,0,7RIK2045 (7RIK2045),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,200000
+True,MSR_GINNI5_3C,B7RA1NH61,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,12345,,0,140000,False,0,0,,,1,False,1,0,B7RA1NH61 (B7RA1NH61),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_PYADAV2,7RIK2057,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,12345,,0,140000,False,0,0,,,1,False,1,0,7RIK2057 (7RIK2057),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000
+True,MSR_BHARATG,R7RA1207,MasterTrust_Dealer,X7RIK01,DCLIENT,False,00:00:00,False,12345,,0,140000,False,0,0,,,1,False,1,0,R7RA1207 (R7RA1207),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,,0,40%,100000

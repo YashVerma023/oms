@@ -1,0 +1,92 @@
+{# Generic data-table page. Every tab (All Users / Running / Usersetting)
+   renders through here; only page_key differs. #}
+{% extends "base.html" %}
+
+{% block title %}{{ title }} &middot; OMP{% endblock %}
+
+{% block content %}
+  {% if as_of %}
+    <p class="as-of">{{ as_of }}</p>
+  {% endif %}
+
+  <div class="toolbar">
+    <input class="search" id="globalSearch" type="search"
+           placeholder="Search..." autocomplete="off">
+    <button class="tool icon" id="btnExport" type="button" title="Download CSV">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+    </button>
+    <button class="tool icon" id="btnReload" type="button"
+            title="Refresh data and recalculate derived columns">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+    </button>
+  </div>
+
+  <div class="panel">
+    <div class="table-scroll">
+      <table class="grid" id="dataTable">
+        <thead>
+          <tr class="head-row">
+            <th class="col-select"><input type="checkbox" id="selectAll"></th>
+            {% if edit_url %}<th class="col-edit"></th>{% endif %}
+            {% for col in columns %}
+              <th data-col="{{ col.name }}" class="{{ 'num' if col.type == 'number' }}">
+                <button class="th-sort" type="button" data-col="{{ col.name }}">
+                  <span>{{ col.name }}</span>
+                  <svg class="sort-icon" viewBox="0 0 24 24">
+                    <path d="M8 10l4-4 4 4M8 14l4 4 4-4"/>
+                  </svg>
+                </button>
+              </th>
+            {% endfor %}
+          </tr>
+          <tr class="filter-row">
+            <th class="col-select"></th>
+            {% if edit_url %}<th class="col-edit"></th>{% endif %}
+            {% for col in columns %}
+              <th>
+                <input class="col-filter" type="search" data-col="{{ col.name }}"
+                       data-type="{{ col.type }}" autocomplete="off"
+                       placeholder="{{ '>10; <50; 10, 20' if col.type == 'number' else 'Search...' }}"
+                       title="{{ 'Supports >10  <50  10-20  or plain text' if col.type == 'number' else 'Contains match' }}">
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="table-empty" id="tableEmpty" hidden>No data to display.</div>
+  </div>
+
+  <div class="table-foot">
+    <span id="selectedCount">0 of 0 row(s) selected.</span>
+    <div class="pager">
+      <label for="pageSize">Rows per page</label>
+      <select id="pageSize">
+        <option>50</option>
+        <option selected>100</option>
+        <option>500</option>
+        <option>2000</option>
+      </select>
+      <span id="pageLabel">Page 1 of 1</span>
+      <button class="pg" id="pgFirst" type="button" title="First">&laquo;</button>
+      <button class="pg" id="pgPrev" type="button" title="Previous">&lsaquo;</button>
+      <button class="pg" id="pgNext" type="button" title="Next">&rsaquo;</button>
+      <button class="pg" id="pgLast" type="button" title="Last">&raquo;</button>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    window.OMP_TABLE = {
+      dataUrl: "{{ url_for('admin.table_data', page_key=page_key) }}",
+      name: "{{ page_key }}",
+      editUrl: {{ (edit_url or '') | tojson }},
+      editKey: {{ (edit_key or '') | tojson }},
+      reconcileUrl: {{ (reconcile_url or '') | tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/table.js') }}"></script>
+{% endblock %}
