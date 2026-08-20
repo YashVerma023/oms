@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Setup &middot; OMP{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Setup &mdash; Allocation Check</h1>
+      <p class="subtitle">
+        Works out what each account's allocation should be from its running
+        capital and the rules, then writes it back. Rules live in
+        <a href="{{ url_for('admin.controls') }}">Admin Controls</a>.
+      </p>
+    </div>
+  </div>
+
+  {% if unavailable %}
+    <div class="flash flash-error">{{ unavailable }}</div>
+  {% endif %}
+
+  <div class="edit-form">
+    <div class="field-grid">
+      <label class="field">
+        <span class="field-label">All Users date <em>the day being set up</em></span>
+        <input type="date" id="checkDate" value="{{ today }}">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Previous day <em>for POS accounts</em></span>
+        <input type="date" id="prevDate">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Mode</span>
+        <select id="mode">
+          {% for m in modes %}
+            <option value="{{ m }}" {% if m == '1DTE' %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">
+          Round capital to the nearest <em>expected steps by this &divide; 100</em>
+        </span>
+        <input type="number" id="rounding" step="1" min="1"
+               value="{{ rounding.basis }}">
+      </label>
+
+      <div class="field">
+        <span class="field-label">Running Users</span>
+        <p class="upload-note" style="margin-top:9px">
+          Latest uploaded snapshot. Rounding is
+          <span class="mono">{{ rounding.mode }}</span>, divisor
+          <span class="mono">{{ rounding.divisor }}</span>.
+        </p>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" id="btnRun" type="button">Run check</button>
+      <button class="btn-primary" id="btnApply" type="button" disabled>
+        Apply selected
+      </button>
+    </div>
+
+    <p class="upload-note" id="setupNote">
+      Running the check changes nothing. Review the result, then apply.
+    </p>
+  </div>
+
+  <div class="summary-row" id="summary" hidden>
+    <span class="stat-pill" id="pillScope">0 in scope</span>
+    <span class="stat-pill warn" id="pillMismatch">0 to change</span>
+    <span class="stat-pill ok" id="pillMatch">0 already correct</span>
+    <span class="stat-pill" id="pillReconcile"></span>
+  </div>
+
+  <div class="panel" id="resultPanel" hidden>
+    <div class="toolbar" style="margin:14px">
+      <input class="search" id="setupSearch" type="search"
+             placeholder="Search user, alias, rule..." autocomplete="off">
+      <button class="tool" id="btnSelectAll" type="button">Select all changes</button>
+      <button class="tool" id="btnSelectNone" type="button">Clear selection</button>
+    </div>
+
+    <div class="table-scroll">
+      <table class="grid">
+        <thead>
+          <tr class="head-row">
+            <th class="col-select"></th>
+            <th>userId</th>
+            <th>alias</th>
+            <th>server</th>
+            <th>algo</th>
+            <th>operator</th>
+            <th>sub category</th>
+            <th>rule</th>
+            <th class="num">capital</th>
+            <th class="num">current</th>
+            <th class="num">expected</th>
+            <th>status</th>
+            <th>remark</th>
+          </tr>
+          {# Tick-box filters, built from the rows the check returned. #}
+          <tr class="filter-row">
+            <th class="col-select"></th>
+            <th></th>
+            <th></th>
+            <th>
+              <div class="choice" data-col="server">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="algo">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="operator_name">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="subcategory">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="rule">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th></th><th></th><th></th>
+            <th>
+              <div class="choice" data-col="status">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="remark">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="setupBody"></tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    window.OMP_SETUP = {
+      runUrl: "{{ url_for('admin.setup_run') }}",
+      applyUrl: "{{ url_for('admin.setup_apply') }}"
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/choice-filter.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/setup.js') }}"></script>
+{% endblock %}

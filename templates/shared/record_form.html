@@ -1,0 +1,58 @@
+{# Add-a-row form. Fields are generated from the table definition, so a new
+   column appears here without a template change. #}
+{% extends "base.html" %}
+
+{% block title %}Add {{ title }} &middot; OMP{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Add to {{ title }}</h1>
+      <p class="subtitle">
+        <span class="mono">{{ pk }}</span> is required and must be unique.
+        Calculated columns are filled in automatically.
+      </p>
+    </div>
+    <a class="tool" href="{{ url_for('admin.table', page_key=page_key) }}">Back to {{ title }}</a>
+  </div>
+
+  <form class="edit-form" method="post">
+    <div class="field-grid">
+      {% for col in columns %}
+        {% set value = submitted.get(col.name, '') %}
+        <label class="field">
+          <span class="field-label">
+            {{ col.name }}{% if col.is_pk %} <em>required</em>{% endif %}
+          </span>
+
+          {% if col.options %}
+            <select name="{{ col.name }}" {% if col.is_pk %}required{% endif %}>
+              <option value="">&mdash;</option>
+              {% for option in col.options %}
+                <option value="{{ option }}"
+                  {% if value and value|lower == option|lower %}selected{% endif %}>{{ option }}</option>
+              {% endfor %}
+            </select>
+          {% elif col.input_type == 'checkbox' %}
+            <select name="{{ col.name }}">
+              <option value="">&mdash;</option>
+              <option value="true" {% if value == 'true' %}selected{% endif %}>True</option>
+              <option value="false" {% if value == 'false' %}selected{% endif %}>False</option>
+            </select>
+          {% else %}
+            <input type="{{ col.input_type }}"
+                   {% if col.input_type == 'number' %}step="any"{% endif %}
+                   {% if col.length %}maxlength="{{ col.length }}"{% endif %}
+                   {% if col.is_pk %}required autofocus{% endif %}
+                   name="{{ col.name }}" value="{{ value }}">
+          {% endif %}
+        </label>
+      {% endfor %}
+    </div>
+
+    <div class="edit-actions">
+      <a class="tool" href="{{ url_for('admin.table', page_key=page_key) }}">Cancel</a>
+      <button class="btn-primary" type="submit">Add row</button>
+    </div>
+  </form>
+{% endblock %}

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 from database.db import _connect, get_config
 
@@ -29,8 +30,14 @@ logger = logging.getLogger(__name__)
 TABLES: dict[str, str] = {}
 
 # Source: 'All User.xlsx' -> Main sheet.
+#
+# Dated history: one row per user per date.
+# Uploaded rows are stamped with today's date; Admin Controls > Save All Users
+# copies the current day's rows onto another date. The surrogate `id` is the
+# primary key so (userId, Date) can carry a plain UNIQUE constraint.
 TABLES["all_users"] = """
 CREATE TABLE `all_users` (
+    `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `userId`         VARCHAR(32)     NOT NULL,
     `alias`          VARCHAR(120)    NULL,
     `Broker`         VARCHAR(64)     NULL,
@@ -50,10 +57,14 @@ CREATE TABLE `all_users` (
     `Category`       VARCHAR(16)     NULL,
     `SubCategory`    VARCHAR(16)     NULL,
     `Acc Type`       VARCHAR(32)     NULL,
+    -- Last data column. Not present in the Main sheet - set to the upload day.
+    `Date`           DATE            NOT NULL,
     `created_at`     TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`     TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
                                      ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`userId`),
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_all_users_user_date` (`userId`, `Date`),
+    KEY `idx_all_users_date` (`Date`),
     KEY `idx_all_users_server` (`server`),
     KEY `idx_all_users_operator` (`Operator Name`),
     KEY `idx_all_users_category` (`Category`, `SubCategory`)
@@ -123,11 +134,14 @@ CREATE TABLE `usersetting` (
     `OrderPerSecond`              INT             NULL,
     `MaxChaseLimit`               VARCHAR(16)     NULL,
     `Remarks`                     VARCHAR(255)    NULL,
+    `server`                      VARCHAR(32)     NULL,
+    `algo`                        VARCHAR(8)      NULL,
     `created_at`                  TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`                  TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
                                                   ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`User ID`),
-    KEY `idx_usersetting_broker` (`Broker`)
+    KEY `idx_usersetting_broker` (`Broker`),
+    KEY `idx_usersetting_server` (`server`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 """
 
@@ -226,6 +240,112 @@ CREATE TABLE `login` (
 # ---------------------------------------------------------------------------
 # Provisioning
 # ---------------------------------------------------------------------------
+
+def _split_definitions(ddl: str) -> list[str]:
+    """Split a CREATE TABLE body into its top-level comma-separated clauses."""
+    body = ddl[ddl.index("(") + 1 : ddl.rindex(")")]
+
+    # Strip '--' comments *before* splitting: a comma inside a comment would
+    # otherwise be treated as a clause separator and swallow the column
+    # definition that follows it.
+    body = "\n".join(
+        line for line in body.splitlines() if not line.strip().startswith("--")
+    )
+
+    parts: list[str] = []
+    depth = 0
+    current: list[str] = []
+
+    for char in body:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        if char == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    parts.append("".join(current))
+
+    # Collapse each clause onto a single line.
+    return [text for text in (" ".join(part.split()) for part in parts) if text]
+
+
+_COLUMN_CLAUSE = re.compile(r"^`([^`]+)`\s+(.+)$")
+_CONSTRAINT_START = ("PRIMARY KEY", "KEY ", "UNIQUE KEY", "INDEX ", "CONSTRAINT", "FOREIGN KEY")
+
+
+def ddl_columns(table: str) -> list[tuple[str, str]]:
+    """Column name and definition pairs, in order, from this module's DDL."""
+    columns = []
+    for clause in _split_definitions(TABLES[table]):
+        if clause.upper().startswith(_CONSTRAINT_START):
+            continue
+        match = _COLUMN_CLAUSE.match(clause)
+        if match:
+            columns.append((match.group(1), match.group(2)))
+    return columns
+
+
+def ensure_columns() -> list[str]:
+    """Add columns present in the DDL but missing from an existing table.
+
+    `ensure_tables()` only creates whole tables, so a column added to
+    database/schema.py would otherwise need a manual ALTER on every existing
+    database - and the app would fail at query time until someone ran it.
+
+    Only *additions* are applied. Widening a type or changing a default is
+    still a manual migration, deliberately: those can lose data.
+
+    Returns:
+        Descriptions of the columns added, e.g. "usersetting.server".
+    """
+    present = existing_tables()
+    added: list[str] = []
+
+    conn = _connect()
+    try:
+        cursor = conn.cursor()
+        try:
+            for table in TABLES:
+                if table.lower() not in present:
+                    continue  # ensure_tables() will create it in full
+
+                cursor.execute(
+                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+                    (get_config()["database"], table),
+                )
+                have = {row[0].lower() for row in cursor.fetchall()}
+
+                previous: str | None = None
+                for name, definition in ddl_columns(table):
+                    if name.lower() in have:
+                        previous = name
+                        continue
+
+                    position = f" AFTER `{previous}`" if previous else " FIRST"
+                    cursor.execute(
+                        f"ALTER TABLE `{table}` ADD COLUMN `{name}` {definition}{position}"
+                    )
+                    added.append(f"{table}.{name}")
+                    logger.info("Added column `%s`.`%s` %s", table, name, definition)
+                    previous = name
+
+            conn.commit()
+        finally:
+            cursor.close()
+    except Exception:
+        logger.exception("Adding missing columns failed after: %s", added or "none")
+        raise
+    finally:
+        conn.close()
+
+    if added:
+        logger.info("Added %s missing column(s): %s", len(added), ", ".join(added))
+    return added
+
 
 def existing_tables() -> set[str]:
     """Table names currently present in the configured database, lowercased.
@@ -352,6 +472,7 @@ if __name__ == "__main__":
 
     setup_logging()
     ensure_tables()
+    ensure_columns()
     ensure_default_admin()
 
     # Self-check: every declared table must now exist.

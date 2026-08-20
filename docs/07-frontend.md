@@ -97,9 +97,37 @@ Text columns do a case-insensitive contains match. Numeric columns accept:
 | `>100; <200` | chained with `;`, all must hold |
 | any other text | falls back to contains |
 
+Two shortcuts work on **every** column, text or numeric:
+
+| Input | Meaning |
+|---|---|
+| a space | only blank cells — NULL, empty, or whitespace only |
+| `/` | only cells that have a value (`0` counts as a value) |
+
+They combine across columns like any other filter, so `/` on one column and a
+space on another finds rows filled in one place but not the other.
+
 `static/js/table.js` exposes the parser as `window.OMP_TABLE_FILTERS` for
 console testing. 18 cases are verified: comparators, ranges, chains, nulls,
 non-numeric input.
+
+### Tick-box filters
+
+Columns listed in a page's `choice_filters` get a dropdown of values to tick
+instead of a text box:
+
+```python
+"choice_filters": ("server", "algo")
+```
+
+Options are derived from the loaded rows — never hard-coded — so they always
+match what is actually in the table, and each shows its row count. Selections
+are **OR within a column, AND across columns**: server ∈ {VS1, VS2} *and*
+algo ∈ {7}. Blanks appear as `(blank)`. Selections that disappear after a
+refresh are dropped silently.
+
+Use it for columns with a small set of repeated values. A high-cardinality
+column such as `userId` should stay a text filter.
 
 ### Why client-side
 

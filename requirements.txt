@@ -3,3 +3,11 @@ Flask-SQLAlchemy==3.1.1
 mysql-connector-python==9.0.0
 python-dotenv==1.0.1
 openpyxl==3.1.5
+# Deliberately unpinned: an exact numpy pin with no wheel for the running
+# Python gets built from source and fails at import with
+# "cannot convert longdouble infinity to integer". Let pip pick the wheel
+# that matches the interpreter.
+# numpy 2.1.x crashes on import under Python 3.13 on Windows with
+# "cannot convert longdouble infinity to integer" - fixed in 2.2.
+pandas>=2.2
+numpy>=2.2

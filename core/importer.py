@@ -27,9 +27,9 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, BinaryIO, Callable
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
-from core import rules
+from core import derive, rules
 from database.db import db, get_config
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,29 @@ NULL_TOKENS = {
 TRUE_TOKENS = {"true", "yes", "y", "1", "t"}
 FALSE_TOKENS = {"false", "no", "n", "0", "f"}
 
+# Usersetting files are named per server: "VS1 19 AUG 2026 USERSETTING.csv".
+# The server must be the first token and separated from what follows, so a
+# run-together name like "VS2819AUG2026USERSETTINGS" is rejected rather than
+# silently read as server VS2819.
+SERVER_IN_FILENAME = re.compile(r"^(VS\d+)(?:[\s_-]|$)", re.IGNORECASE)
+
+
+def server_from_filename(filename: str) -> dict[str, Any]:
+    """Extract the server code from a usersetting file name.
+
+    Raises:
+        ValueError: the name does not begin with a separated VS<number> token.
+    """
+    stem = filename.rsplit(".", 1)[0].strip()
+    match = SERVER_IN_FILENAME.match(stem)
+    if not match:
+        raise ValueError(
+            f"'{filename}': the file name must start with the server followed by a "
+            f"space, e.g. 'VS1 19 AUG 2026 USERSETTING.csv'. "
+            f"Run-together names like 'VS2819AUG2026USERSETTINGS' are not accepted."
+        )
+    return {"server": match.group(1).upper()}
+
 
 @dataclass
 class ImportSpec:
@@ -64,6 +87,20 @@ class ImportSpec:
     renames: dict[str, str] = field(default_factory=dict)
     # Optional per-row normaliser, applied after coercion.
     post_process: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+    # Optional: derive extra column values from the file's name. Raising
+    # ValueError rejects the upload.
+    filename_columns: Callable[[str], dict[str, Any]] | None = None
+    # For mode="replace_scope": only rows sharing this column's uploaded
+    # values are deleted before insert.
+    scope_column: str | None = None
+    # Optional: run after a successful write, e.g. to derive columns that
+    # come from another table.
+    post_write: Callable[[], Any] | None = None
+    # Optional: the upload form asks for a date and stamps it on every row.
+    date_column: str | None = None
+    # Rows whose column value matches one of these are dropped, e.g. the
+    # trailing Total / Grand Total lines of a sheet. Matched case-insensitively.
+    exclude_values: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property
     def pk_label(self) -> str:
@@ -75,7 +112,7 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         table="all_users",
         title="All Users",
         kind="xlsx",
-        mode="replace",
+        mode="replace_scope",
         pk=("userId",),
         header_row=1,
         sheet="Main",
@@ -87,7 +124,11 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         },
         # ml_pct is recomputed and the NOT RUNNING / DLR ACC linkage enforced,
         # so the sheet's own '%' column is only a fallback.
-        post_process=rules.apply,
+        post_process=derive.apply_all_users,
+        # The sheet has no date: the upload form asks for one, and only that
+        # date's rows are replaced so earlier days are kept.
+        date_column="Date",
+        scope_column="Date",
     ),
     "jainam": ImportSpec(
         table="jainam",
@@ -99,6 +140,8 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         header_row=1,
         sheet="Jainam",
         accept=(".xlsx", ".xlsm"),
+        # The sheet ends with a Total line that is not an account.
+        exclude_values={"UserID": ("total", "grand total", "grandtotal")},
     ),
     "server-config": ImportSpec(
         table="server_config",
@@ -109,6 +152,8 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         header_row=1,
         sheet="Servers",
         accept=(".xlsx", ".xlsm"),
+        # The mapping changed, so operators must be re-derived.
+        post_write=derive.sync_all_users_operator,
     ),
     "running": ImportSpec(
         table="running_users",
@@ -122,12 +167,19 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         table="usersetting",
         title="Usersetting",
         kind="csv",
-        mode="replace",
         pk=("User ID",),
         # Rows 1-6 are comment lines; row 7 holds the headers.
         header_row=7,
-        # Settings arrive as one CSV per broker/server; all are loaded together.
+        # Settings arrive as one CSV per server; several can be loaded at once.
         multiple=True,
+        # `server` comes from the file name, not from the sheet.
+        filename_columns=server_from_filename,
+        # Replace only the servers being uploaded, so loading VS1 does not
+        # wipe VS2..VS28.
+        mode="replace_scope",
+        scope_column="server",
+        # `algo` is copied from all_users once the rows are in.
+        post_write=derive.sync_usersetting_algo,
     ),
 }
 
@@ -373,8 +425,15 @@ def _parse_one(
     filename: str,
     report: ImportReport,
     label: str,
+    extra: dict[str, Any],
 ) -> tuple[list[tuple[dict[str, Any], int]], list[tuple[str, dict[str, Any]]]]:
     """Parse one file into (matched columns, [(primary key, record), ...])."""
+    # Rejects the file before it is parsed if the name is not usable.
+    from_name = spec.filename_columns(filename) if spec.filename_columns else {}
+    # Values supplied by the upload form (e.g. the chosen date) win over the
+    # sheet, and are stamped on every row.
+    supplied = {**from_name, **extra}
+
     if spec.kind == "xlsx":
         headers, data_rows = _read_xlsx(stream, spec.sheet, spec.header_row)
     else:
@@ -385,6 +444,8 @@ def _parse_one(
     # Match each table column to a sheet column, honouring the rename map.
     matched: list[tuple[dict[str, Any], int]] = []
     for column in columns:
+        if column["name"] in supplied:
+            continue  # supplied by the form or file name, not the sheet
         source_header = spec.renames.get(column["name"], column["name"])
         if source_header in header_index:
             matched.append((column, header_index[source_header]))
@@ -418,6 +479,11 @@ def _parse_one(
         if all(_is_null(v) for v in raw_row):
             continue  # blank spacer row
 
+        if _excluded(spec, matched, raw_row):
+            report.skipped += 1
+            report.note(f"{label}Row {sheet_row}: summary row - skipped")
+            continue
+
         key_parts = [
             raw_row[position] if position < len(raw_row) else None
             for position in pk_positions
@@ -428,7 +494,7 @@ def _parse_one(
             continue
 
         # Keyed by real column name so post_process rules stay readable.
-        values: dict[str, Any] = {}
+        values: dict[str, Any] = dict(supplied)
         for column, index in matched:
             raw = raw_row[index] if index < len(raw_row) else None
             value = _coerce(raw, column)
@@ -452,6 +518,7 @@ def _parse_one(
 def import_sheet(
     target: str,
     uploads: list[tuple[BinaryIO, str]],
+    extra: dict[str, Any] | None = None,
 ) -> ImportReport:
     """Parse one or more uploaded sheets and load them into the target table.
 
@@ -478,7 +545,9 @@ def import_sheet(
     for stream, filename in uploads:
         # Only prefix notes with the filename when there is more than one.
         label = f"{filename}: " if len(uploads) > 1 else ""
-        matched, parsed = _parse_one(spec, columns, stream, filename, report, label)
+        matched, parsed = _parse_one(
+            spec, columns, stream, filename, report, label, extra or {}
+        )
         collected.extend((filename, key, record) for key, record in parsed)
         report.files.append({"name": filename, "rows": len(parsed)})
 
@@ -506,11 +575,36 @@ def import_sheet(
     report.matched_columns = [c["name"] for c, _ in matched]
     _write(spec, matched, records, report)
 
+    if spec.post_write:
+        derived = spec.post_write()
+        if derived:
+            report.note(f"Derived columns updated on {derived} row(s) after load.")
+
     logger.info(
         "Import '%s' from %s file(s) [%s]: %s loaded, %s skipped, %s columns matched",
         target, len(uploads), report.filename, report.loaded, report.skipped, len(matched),
     )
     return report
+
+
+def _excluded(
+    spec: ImportSpec,
+    matched: list[tuple[dict[str, Any], int]],
+    raw_row: list[Any],
+) -> bool:
+    """Whether this row is a summary line the spec asks to drop."""
+    if not spec.exclude_values:
+        return False
+
+    positions = {c["name"]: i for c, i in matched}
+    for column, unwanted in spec.exclude_values.items():
+        index = positions.get(column)
+        if index is None or index >= len(raw_row):
+            continue
+        value = str(raw_row[index] or "").strip().lower()
+        if value and value in {u.lower() for u in unwanted}:
+            return True
+    return False
 
 
 def _param(column_name: str) -> str:
@@ -525,9 +619,20 @@ def _write(
     report: ImportReport,
 ) -> None:
     """Replace or append the parsed rows in one transaction."""
-    names = [c["name"] for c, _ in matched]
-    column_list = ", ".join(f"`{n}`" for n in names)
-    value_list = ", ".join(f":{_param(n)}" for n in names)
+    # Records can carry columns from three places: matched sheet headers, the
+    # file name, and post_process (e.g. the derived `Date`). Build the
+    # param -> column map from the table itself so every one is covered.
+    names = sorted(records[0].keys())
+    reverse = {_param(c["name"]): c["name"] for c in _target_columns(spec.table)}
+
+    unknown = [p for p in names if p not in reverse]
+    if unknown:
+        raise ValueError(
+            f"Internal error: parameters {unknown} do not map to columns of "
+            f"'{spec.table}'"
+        )
+    column_list = ", ".join(f"`{reverse[p]}`" for p in names)
+    value_list = ", ".join(f":{p}" for p in names)
     insert_sql = text(f"INSERT INTO `{spec.table}` ({column_list}) VALUES ({value_list})")
 
     try:
@@ -536,6 +641,31 @@ def _write(
             # destroy the old data even if the insert then failed.
             deleted = db.session.execute(text(f"DELETE FROM `{spec.table}`")).rowcount
             logger.info("Replace mode: removed %s existing rows from '%s'", deleted, spec.table)
+
+        elif spec.mode == "replace_scope":
+            # Only the uploaded scopes are cleared, so loading one server's
+            # file leaves every other server untouched.
+            scope_param = _param(spec.scope_column)
+            scopes = sorted({r[scope_param] for r in records if r.get(scope_param) is not None})
+            if scopes:
+                deleted = db.session.execute(
+                    text(
+                        f"DELETE FROM `{spec.table}` "
+                        f"WHERE `{spec.scope_column}` IN :scopes"
+                    ).bindparams(bindparam("scopes", expanding=True)),
+                    {"scopes": scopes},
+                ).rowcount
+                # Scope values are not always strings - `Date` is a date.
+                shown = ", ".join(str(s) for s in scopes)
+                logger.info(
+                    "Scoped replace: removed %s row(s) from '%s' for %s %s",
+                    deleted, spec.table, spec.scope_column, shown,
+                )
+                report.note(
+                    f"Replaced existing rows for {spec.scope_column} {shown} "
+                    f"({deleted} removed); other {spec.scope_column} values "
+                    f"were left untouched."
+                )
 
         for start in range(0, len(records), CHUNK):
             db.session.execute(insert_sql, records[start:start + CHUNK])

@@ -15,8 +15,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-  {# CSS-only mobile nav: the checkbox drives the dropdown, no JS needed. #}
+  {# CSS-only nav drawer: the checkbox drives it, no JS needed. #}
   <input type="checkbox" id="navToggle" class="nav-toggle-state" hidden>
+  <label class="nav-scrim" for="navToggle" aria-label="Close menu"></label>
 
   <header class="navbar">
     <a class="brand" href="{{ url_for('admin.dashboard') }}">
@@ -26,6 +27,21 @@
       <span>MegaServe OMP</span>
     </a>
 
+    {# display:contents on desktop, so nav and nav-right sit in the bar. #}
+    <div class="nav-panel">
+      <div class="panel-head">
+        <span class="brand">
+          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 17h2v4H3zM7 9h2v12H7zM11 13h2v8h-2zM15 5h2v16h-2zM19 11h2v10h-2z"/>
+          </svg>
+          <span>MegaServe OMP</span>
+        </span>
+        <label class="panel-close" for="navToggle" aria-label="Close menu">&times;</label>
+      </div>
+
+      <div class="panel-welcome">Welcome, <b>{{ session.get('name') }}</b></div>
+      <div class="panel-label">Navigation</div>
+
     <nav class="nav">
       {% block nav %}
       <a class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}"
@@ -34,8 +50,12 @@
         <a class="nav-item {% if page_key == key %}active{% endif %}"
            href="{{ url_for('admin.table', page_key=key) }}">{{ cfg.title }}</a>
       {% endfor %}
+      <a class="nav-item {% if request.endpoint == 'admin.setup' %}active{% endif %}"
+         href="{{ url_for('admin.setup') }}">Setup</a>
       {% endblock %}
     </nav>
+
+    <div class="panel-label">Account</div>
 
     <div class="nav-right">
       <span class="welcome">Welcome, <b>{{ session.get('name') }}</b>!</span>
@@ -52,13 +72,16 @@
         <div class="menu">
           <div class="menu-title">Settings</div>
 
-          <a class="menu-item disabled" href="#" title="Not built yet">
+          {% if session.get('role') in ('admin', 'superadmin') %}
+          <a class="menu-item {% if request.endpoint == 'admin.controls' %}current{% endif %}"
+             href="{{ url_for('admin.controls') }}">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="3"/>
               <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
             </svg>
             Admin Controls
           </a>
+          {% endif %}
 
           {% if session.get('role') == 'superadmin' %}
             <a class="menu-item {% if request.endpoint == 'superadmin.msusers' %}current{% endif %}"
@@ -91,8 +114,11 @@
           <a class="menu-logout" href="{{ url_for('auth.logout') }}">Log Out</a>
         </div>
       </details>
-      <button class="theme-toggle" id="themeToggle" type="button" title="Toggle theme"
-              aria-label="Toggle light and dark theme">
+    </div>
+    </div>
+
+    <button class="theme-toggle" id="themeToggle" type="button" title="Toggle theme"
+            aria-label="Toggle light and dark theme">
         <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
         </svg>
@@ -100,11 +126,11 @@
           <circle cx="12" cy="12" r="4.2"/>
           <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
         </svg>
-      </button>
-      <label class="nav-burger" for="navToggle" title="Menu" aria-label="Open menu">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-      </label>
-    </div>
+    </button>
+
+    <label class="nav-burger" for="navToggle" title="Menu" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </label>
   </header>
 
   {% with messages = get_flashed_messages(with_categories=true) %}

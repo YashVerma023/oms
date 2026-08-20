@@ -71,6 +71,9 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 
 .brand-mark { width: 22px; height: 22px; fill: currentColor; stroke: none; }
 
+.nav-panel { display: contents; }
+.panel-head, .panel-label, .panel-welcome, .nav-scrim, .panel-close { display: none; }
+
 .nav { display: flex; align-items: center; gap: 10px; flex: 1; flex-wrap: wrap; }
 
 .nav-item {
@@ -273,6 +276,30 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 }
 
 .tool.icon { padding: 9px 11px; }
+.tool.danger:hover:not(:disabled) { border-color: var(--neg); color: var(--neg); }
+
+/* Calendar control: the icon is the affordance, the input carries the value. */
+.date-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.date-pick input {
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.date-pick input:focus { outline: none; }
+.date-pick:hover { border-color: var(--accent); }
+.date-pick:hover svg { color: var(--accent); }
 
 /* Refresh feedback while the refetch is in flight. */
 @keyframes omp-spin { to { transform: rotate(360deg); } }
@@ -362,7 +389,124 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .col-filter:focus { outline: none; border-color: var(--accent); }
 .col-filter::placeholder { color: var(--muted); opacity: .8; }
 
+/* ---------- Tick-box column filter ---------- */
+
+.choice { position: relative; }
+
+.choice-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  min-width: 108px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.choice-btn:hover { border-color: var(--accent); }
+.choice-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+.choice-btn.active { color: var(--accent); border-color: var(--accent); }
+
+/* Fixed, not absolute: the table scroller has overflow:auto, which would clip
+   an absolutely-positioned menu - invisibly so when few rows are shown.
+   Coordinates are set in JS from the button's bounding box. */
+.choice-menu {
+  position: fixed;
+  z-index: 60;
+  width: max-content;
+  min-width: 190px;
+  max-width: 300px;
+  padding-bottom: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.choice-head {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.choice-clear {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice-clear:hover { background: var(--surface-2); color: var(--accent); }
+
+.choice-list { max-height: 260px; overflow-y: auto; padding: 4px 0; }
+
+.choice-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.choice-item:hover { background: var(--surface-2); }
+.choice-item input { cursor: pointer; flex-shrink: 0; }
+.choice-item span { flex: 1; white-space: nowrap; }
+.choice-item em { font-style: normal; font-weight: 400; color: var(--muted); }
+
+.choice-done {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 6px 12px 0;
+  padding: 7px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.choice-done:hover { filter: brightness(1.08); }
+
 .grid tbody tr:hover td { background: var(--surface-2); }
+
+/* Editable cells: a quiet hint, so the grid does not look like a form. */
+.grid td.editable { cursor: cell; }
+.grid td.editable:hover { box-shadow: inset 0 0 0 1px var(--border); }
+.grid td.saving { opacity: .5; }
+
+.cell-input {
+  width: 100%;
+  min-width: 90px;
+  padding: 5px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.cell-input:focus { outline: none; }
 .grid td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .grid th.num .th-sort { justify-content: flex-end; }
 
@@ -481,6 +625,10 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   font-size: 13px;
 }
 
+.table-status { font-size: 13px; font-weight: 600; }
+.table-status.ok { color: var(--pos); }
+.table-status.warn { color: var(--neg); }
+
 .pager { display: flex; align-items: center; gap: 10px; }
 
 .pager select {
@@ -570,6 +718,91 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 }
 
 .upload-note { margin: -4px 0 12px; color: var(--muted); font-size: 12px; }
+
+/* ---------- Rules tables (Admin Controls) ---------- */
+
+.rules-block { margin-top: 24px; }
+.rules-block .panel { margin-top: 4px; }
+.rules-head h2 { margin: 0 0 4px; font-size: 17px; }
+.rules-head .subtitle { max-width: 900px; }
+
+.rules-table td { padding: 5px 8px; }
+
+.rules-table input,
+.rules-table select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.rules-table td.num input { text-align: right; font-variant-numeric: tabular-nums; }
+.rules-table input:hover,
+.rules-table select:hover { border-color: var(--border); }
+
+.rules-table input:focus,
+.rules-table select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.row-drop {
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.row-drop:hover { color: var(--neg); border-color: var(--neg); }
+
+.rules-editor {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.rules-editor:focus { outline: none; border-color: var(--accent); }
+
+.summary-row {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 20px 0 0;
+}
+
+.snapshot-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.snapshot-list li {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.snapshot-list li:last-child { border-bottom: 0; }
 
 .btn-primary {
   width: 100%;
@@ -724,42 +957,143 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   .nav-right { margin-left: auto; }
 }
 
-/* Small tablet / large phone: nav collapses behind the burger. */
-@media (max-width: 1100px) {
-  .navbar { padding: 14px 22px; gap: 14px 24px; }
-  .content { padding: 22px 22px 32px; }
-}
-
+/* Small tablet / phone: the nav becomes a slide-in drawer. */
 @media (max-width: 820px) {
   .navbar { padding: 10px 14px; gap: 10px; }
-  .table-scroll { max-height: calc(100vh - 250px); }
   .nav-burger {
     display: grid;
     place-items: center;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border: 1px solid var(--border);
-    border-radius: 7px;
+    border-radius: 8px;
     color: var(--text);
     cursor: pointer;
+    margin-left: auto;
   }
+
+  /* Dim the page behind the drawer; tapping it closes. */
+  .nav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgba(0, 0, 0, .5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+  }
+
+  .nav-toggle-state:checked ~ .nav-scrim { opacity: 1; pointer-events: auto; }
+
+  .nav-panel {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 90;
+    width: min(320px, 86vw);
+    height: 100%;
+    padding: 16px 16px 24px;
+    overflow-y: auto;
+    background: var(--nav-bg);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transform: translateX(100%);
+    transition: transform .2s ease;
+  }
+
+  .nav-toggle-state:checked ~ .navbar .nav-panel { transform: translateX(0); }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+  }
+
+  .panel-close {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .panel-close:hover { color: var(--text); background: var(--surface-2); }
+
+  .panel-welcome {
+    display: block;
+    padding: 13px 15px;
+    margin-bottom: 20px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    font-size: 14px;
+  }
+
+  .panel-welcome b { font-weight: 700; }
+
+  .panel-label {
+    display: block;
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .4px;
+    color: var(--muted);
+  }
+
   .nav {
-    order: 3;
-    display: none;
+    flex: 0 0 auto;
     flex-direction: column;
     align-items: stretch;
-    width: 100%;
-    overflow: visible;
     gap: 2px;
+    margin-bottom: 22px;
   }
-  .nav-toggle-state:checked ~ .navbar .nav { display: flex; }
-  .nav-item { padding: 11px 12px; border-radius: 6px; }
-  .btn-settings span { display: none; }
-  .welcome { display: none; }
+
+  .nav-item {
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 15px;
+  }
+
+  .nav-item.active {
+    background: rgba(242, 85, 90, .12);
+    text-decoration: none;
+  }
+
+  /* Account section: stacked, full width. */
+  .nav-right {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-left: 0;
+  }
+
+  .nav-right .welcome { display: none; }        /* the card above says it */
+  .settings { width: 100%; }
+  .btn-settings { justify-content: center; padding: 11px 14px; }
+  .btn-settings span { display: inline; }
+
+  /* Inside the drawer the menu is a plain block, not a floating panel. */
+  .settings[open] .menu {
+    position: static;
+    width: 100%;
+    min-width: 0;
+    margin-top: 8px;
+    box-shadow: none;
+  }
+
   .content { padding: 18px 14px; }
   .page-head h1 { font-size: 22px; }
   .stats { width: 100%; }
   .stat { flex: 1; padding: 12px 14px; }
+  .table-scroll { max-height: calc(100vh - 250px); }
 }
 
 /* Phone: single column throughout. */

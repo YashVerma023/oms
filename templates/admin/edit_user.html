@@ -27,6 +27,12 @@
                placeholder="max_loss / allocation" disabled>
       </label>
 
+      <label class="field readonly">
+        <span class="field-label">Operator Name <em>from server</em></span>
+        <input type="text" value="{{ record['Operator Name'] or '' }}"
+               placeholder="looked up from Server Config" disabled>
+      </label>
+
       {% for col in columns %}
         {% set name = col.name %}
         {% set value = record[name] %}

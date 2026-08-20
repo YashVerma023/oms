@@ -11,11 +11,13 @@
     view: [],
     columns: [],
     filters: {},      // column -> raw filter text
+    choices: {},      // column -> Set of ticked values (empty Set = no filter)
     global: "",
     sortCol: null,
     sortDir: 1,
     page: 1,
-    pageSize: 100,
+    pageSize: 1000,   // must match the selected <option> in shared/table.html
+    date: cfg.selectedDate || "",
     selected: new Set()
   };
 
@@ -41,15 +43,15 @@
   // Precomputed once per load, so rendering and filtering never re-parse.
   // Sorting deliberately keeps using the raw value: ISO dates sort
   // chronologically as plain strings, "02-FEB-2026" would not.
-  function buildDisplay() {
-    var formatted = state.columns.filter(function (c) { return c.format === "date"; });
-    if (!formatted.length) return;
-
-    state.rows.forEach(function (row) {
-      formatted.forEach(function (c) {
-        row["__display__" + c.name] = formatDate(row[c.name]);
-      });
+  function buildDisplayRow(row) {
+    state.columns.forEach(function (c) {
+      if (c.format === "date") row["__display__" + c.name] = formatDate(row[c.name]);
     });
+  }
+
+  function buildDisplay() {
+    if (!state.columns.some(function (c) { return c.format === "date"; })) return;
+    state.rows.forEach(buildDisplayRow);
   }
 
   function display(row, column) {
@@ -91,6 +93,10 @@
     });
   }
 
+  function isBlank(value) {
+    return value === null || value === undefined || String(value).trim() === "";
+  }
+
   function textMatch(value, needle) {
     return String(value === null ? "" : value).toLowerCase()
       .indexOf(needle.toLowerCase()) !== -1;
@@ -109,7 +115,20 @@
       }
 
       return state.columns.every(function (c) {
-        var expr = (state.filters[c.name] || "").trim();
+        var picked = state.choices[c.name];
+        if (picked && picked.size) {
+          if (!picked.has(row[c.name] === null ? "" : String(row[c.name]))) return false;
+        }
+
+        var raw = state.filters[c.name] || "";
+        var expr = raw.trim();
+
+        // Two shortcuts, on every column type:
+        //   " " (spaces only) -> only blank/NULL cells
+        //   "/"               -> only cells that have a value
+        if (raw !== "" && expr === "") return isBlank(row[c.name]);
+        if (expr === "/") return !isBlank(row[c.name]);
+
         if (!expr) return true;
         return c.type === "number"
           ? numericMatch(row[c.name], expr)
@@ -199,6 +218,14 @@
         } else {
           td.textContent = v === null ? "" : v;
         }
+
+        if (isEditable(c)) {
+          td.classList.add("editable");
+          td.title = "Double-click to edit";
+          td.addEventListener("dblclick", function () {
+            beginEdit(td, row, c);
+          });
+        }
         tr.appendChild(td);
       });
 
@@ -217,6 +244,198 @@
   function updateCounts() {
     $("selectedCount").textContent =
       state.selected.size + " of " + state.view.length + " row(s) selected.";
+
+    // Left enabled with nothing selected: a disabled button gives no feedback,
+    // which reads as "delete is broken" rather than "pick some rows first".
+    var del = $("btnDelete");
+    if (del) del.disabled = !cfg.deleteKey.length;
+    // No delete control means the selection is not actionable.
+    if (!del) $("selectedCount").textContent = state.view.length + " row(s).";
+  }
+
+  function setStatus(message, kind) {
+    var el = $("tableStatus");
+    if (!el) return;
+    el.textContent = message || "";
+    el.className = "table-status" + (kind ? " " + kind : "");
+    if (message) {
+      clearTimeout(setStatus.timer);
+      setStatus.timer = setTimeout(function () {
+        el.textContent = "";
+        el.className = "table-status";
+      }, 6000);
+    }
+  }
+
+  // ---- delete --------------------------------------------------------------
+
+  function deleteSelected() {
+    var keys = Array.from(state.selected)
+      .map(function (i) { return state.view[i]; })
+      .filter(Boolean)
+      .map(function (row) {
+        return cfg.deleteKey.map(function (c) { return row[c]; });
+      });
+
+    if (!keys.length) {
+      setStatus("Tick the checkbox on the rows you want to delete first.", "warn");
+      return;
+    }
+
+    var what = keys.length === 1 ? "1 row" : keys.length + " rows";
+    if (!window.confirm("Delete " + what + " permanently? This cannot be undone.")) return;
+
+    var button = $("btnDelete");
+    button.disabled = true;
+    setStatus("Deleting " + what + "...");
+
+    fetch(cfg.deleteUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ keys: keys })
+    })
+      .then(function (r) {
+        return r.json().then(function (body) {
+          if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+          return body;
+        });
+      })
+      .then(function (body) {
+        state.selected.clear();
+        setStatus("Deleted " + body.deleted + " row(s).", "ok");
+        return load(true);
+      })
+      .catch(function (err) {
+        console.error("Delete failed:", err);
+        setStatus("Delete failed: " + err.message, "warn");
+      })
+      .finally(function () { button.disabled = false; });
+  }
+
+  // ---- choice filters ------------------------------------------------------
+
+  // Tick-box filter for columns with a small set of repeated values. The menu
+  // itself lives in static/js/choice-filter.js, shared with the Setup tab.
+  function buildChoiceFilters() {
+    document.querySelectorAll(".choice").forEach(function (holder) {
+      var name = holder.dataset.col;
+      var picked = state.choices[name] || (state.choices[name] = new Set());
+
+      var counts = {};
+      state.rows.forEach(function (row) {
+        var v = row[name] === null ? "" : String(row[name]);
+        counts[v] = (counts[v] || 0) + 1;
+      });
+
+      window.OMPChoice.build(holder, {
+        label: name,
+        counts: counts,
+        selected: picked,
+        onChange: applyFilters
+      });
+    });
+  }
+
+  // ---- inline editing ------------------------------------------------------
+
+  var editing = null;   // guards against opening two editors at once
+
+  function isEditable(column) {
+    var meta = cfg.editable;
+    if (!meta || !cfg.fieldUrl) return false;
+    if (meta.readonly.indexOf(column.name) !== -1) return false;
+    if (column.computed) return false;
+    return column.name in meta.types;
+  }
+
+  function beginEdit(td, row, column) {
+    if (editing) return;
+    editing = td;
+
+    var meta = cfg.editable;
+    var original = row[column.name];
+    var options = meta.options[column.name];
+    var input;
+
+    if (options && options.length) {
+      input = document.createElement("select");
+      input.appendChild(new Option("—", ""));
+      options.forEach(function (o) {
+        var opt = new Option(o, o);
+        if (original !== null && String(original).toLowerCase() === o.toLowerCase()) {
+          opt.selected = true;
+        }
+        input.appendChild(opt);
+      });
+    } else {
+      input = document.createElement("input");
+      input.type = meta.types[column.name] === "number" ? "number" : "text";
+      if (input.type === "number") input.step = "any";
+      input.value = original === null ? "" : original;
+    }
+
+    input.className = "cell-input";
+    td.textContent = "";
+    td.appendChild(input);
+    input.focus();
+    if (input.select) input.select();
+
+    var settled = false;
+
+    function finish(save) {
+      if (settled) return;
+      settled = true;
+      editing = null;
+
+      var value = input.value;
+      if (!save || String(value) === String(original === null ? "" : original)) {
+        render();                       // discard the editor, keep the data
+        return;
+      }
+      commit(row, column, value, td);
+    }
+
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    });
+    input.addEventListener("blur", function () { finish(true); });
+    // A select fires change before blur; commit immediately on choice.
+    if (input.tagName === "SELECT") {
+      input.addEventListener("change", function () { finish(true); });
+    }
+  }
+
+  function commit(row, column, value, td) {
+    td.classList.add("saving");
+
+    fetch(cfg.fieldUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        key: row[cfg.editable.pk],
+        column: column.name,
+        value: value
+      })
+    })
+      .then(function (r) {
+        return r.json().then(function (body) {
+          if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+          return body;
+        });
+      })
+      .then(function (body) {
+        // Replace the whole row: a rule may have changed sibling columns
+        // (linked running state, algo) and derived ones (ml_pct).
+        Object.keys(body.row).forEach(function (k) { row[k] = body.row[k]; });
+        buildDisplayRow(row);
+        applyFilters();
+      })
+      .catch(function (err) {
+        console.error("Could not save:", err);
+        window.alert("Could not save: " + err.message);
+        render();
+      });
   }
 
   // ---- events --------------------------------------------------------------
@@ -267,8 +486,37 @@
     $("pgNext").addEventListener("click", function () { state.page++; render(); });
     $("pgLast").addEventListener("click", function () { state.page = pageCount(); render(); });
 
+    if ($("datePick")) {
+      // Clicking anywhere on the control opens the native calendar, rather
+      // than only the small icon inside the input.
+      var wrap = $("datePickWrap");
+      if (wrap) {
+        wrap.addEventListener("click", function (e) {
+          var picker = $("datePick");
+          if (e.target === picker) return;
+          if (typeof picker.showPicker === "function") {
+            try { picker.showPicker(); } catch (err) { picker.focus(); }
+          } else {
+            picker.focus();
+          }
+        });
+      }
+
+      $("datePick").addEventListener("change", function (e) {
+        state.date = e.target.value;
+        state.selected.clear();
+        setStatus(state.date ? "Loading " + state.date + "..." : "Loading...");
+        load(true).then(function () {
+          setStatus(state.view.length
+            ? "Showing " + state.date
+            : "No data for " + state.date, state.view.length ? "" : "warn");
+        });
+      });
+    }
+
     $("btnReload").addEventListener("click", reconcileThenLoad);
     $("btnExport").addEventListener("click", exportCsv);
+    if ($("btnDelete")) $("btnDelete").addEventListener("click", deleteSelected);
   }
 
   function exportCsv() {
@@ -337,7 +585,9 @@
     }
 
     // no-store: a cached 200 would silently return yesterday's derived values.
-    fetch(cfg.dataUrl, { headers: { "Accept": "application/json" }, cache: "no-store" })
+    var url = cfg.dataUrl + (state.date ? "?date=" + encodeURIComponent(state.date) : "");
+
+    fetch(url, { headers: { "Accept": "application/json" }, cache: "no-store" })
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
@@ -345,8 +595,14 @@
       .then(function (data) {
         state.columns = data.columns;
         state.rows = data.rows;
+        if (data.date) {
+          state.date = data.date;
+          var picker = $("datePick");
+          if (picker && picker.value !== data.date) picker.value = data.date;
+        }
         state.selected.clear();
         buildDisplay();
+        buildChoiceFilters();
         applyFilters();
       })
       .catch(function (err) {
@@ -364,7 +620,8 @@
   window.OMP_TABLE_FILTERS = {
     numericMatch: numericMatch,
     textMatch: textMatch,
-    formatDate: formatDate
+    formatDate: formatDate,
+    isBlank: isBlank
   };
 
   bind();

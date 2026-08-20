@@ -45,7 +45,30 @@ Returns NULL when:
 - the result is wider than `DECIMAL(18,4)` (see
   [04-data-import.md](04-data-import.md#numeric-range-guard)).
 
-## Rule 3 — canonical option values
+## Rule 3 — derived `Operator Name`
+
+`all_users."Operator Name"` is looked up from `server_config.Operator` by
+server. It is **not editable** anywhere — not in the edit form, not inline.
+
+| Server | Operator Name |
+|---|---|
+| matches a server_config row with an operator | that operator |
+| `DLR ACC` | `DLR ACC` |
+| `NOT RUNNING` | `NOT RUNNING` |
+| in server_config but with no operator | `NOT RUNNING` |
+| not in server_config at all | `NOT RUNNING` |
+| blank | `NOT RUNNING` |
+
+Server matching is case-insensitive.
+
+**Safety guard:** if `server_config` holds no operators at all — because it has
+not been uploaded yet — the sync is skipped and logged, rather than rewriting
+every row to `NOT RUNNING` and destroying the existing values.
+
+Re-derived on: an All Users upload, a Server Config upload (the mapping
+changed), Refresh on the All Users tab, and any edit.
+
+## Rule 4 — canonical option values
 
 Legacy sheet values are snapped onto the option lists, case-insensitively:
 `Not Running` → `NOT RUNNING`, `DAILY` → `Daily`, `int` → `INT`. Unrecognised

@@ -21,16 +21,35 @@
 
         <div class="upload-card-head">
           <h2>{{ spec.title }}</h2>
-          <span class="target-mode {{ spec.mode }}">
-            {{ 'Replaces all rows' if spec.mode == 'replace' else 'Appends snapshot' }}
+          <span class="target-mode {{ 'replace' if spec.mode == 'replace' else 'append' }}">
+            {% if spec.mode == 'replace' %}Replaces all rows
+            {%- elif spec.mode == 'replace_scope' %}Replaces this {{ spec.scope_column }} only
+            {%- else %}Appends snapshot{% endif %}
           </span>
         </div>
+
+        {% if spec.date_column %}
+          <label class="field">
+            <span class="field-label">Date this data belongs to</span>
+            <input type="date" name="date" value="{{ today }}" required>
+          </label>
+          <p class="upload-note">
+            Only this date's rows are replaced. Other dates are kept.
+          </p>
+        {% endif %}
 
         <input class="file-input" type="file" name="file" required
                accept="{{ spec.accept | join(',') }}"
                {% if spec.multiple %}multiple{% endif %}>
         {% if spec.multiple %}
           <p class="upload-note">Select several files to load them together.</p>
+        {% endif %}
+        {% if spec.filename_columns %}
+          <p class="upload-note">
+            The file name must start with the server, e.g.
+            <span class="mono">VS1 19 AUG 2026 USERSETTING.csv</span>.
+            Only the servers you upload are replaced.
+          </p>
         {% endif %}
         <button class="btn-primary" type="submit">Upload {{ spec.title }}</button>
       </form>

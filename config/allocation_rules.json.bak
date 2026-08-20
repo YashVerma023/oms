@@ -1,0 +1,151 @@
+{
+  "version": 2,
+  "_doc": "Allocation Check rules. See config/README.md for what each setting means. Most of this is editable in the app: Allocation Check -> Active rules.",
+  "rounding": {
+    "basis": 2500000,
+    "mode": "half_up",
+    "divisor": 100
+  },
+  "excluded_servers": [
+    "dlr acc",
+    "not running"
+  ],
+  "excluded_algos": [
+    8,
+    19,
+    27
+  ],
+  "dte_filters": {
+    "0DTE": {
+      "runningtype": null,
+      "runningdays": null
+    },
+    "1DTE": {
+      "runningtype": [
+        "pos"
+      ],
+      "runningdays": [
+        "1dte/0dte",
+        "daily"
+      ]
+    },
+    "4DTE": {
+      "runningtype": [
+        "pos"
+      ],
+      "runningdays": [
+        "daily"
+      ]
+    }
+  },
+  "previous_day": {
+    "required": [
+      "0DTE"
+    ],
+    "optional": [
+      "1DTE"
+    ],
+    "unused": [
+      "4DTE"
+    ]
+  },
+  "routing": {
+    "0DTE": {
+      "with_previous_day": [
+        {
+          "method": "capital",
+          "runningtype": [
+            "int"
+          ]
+        },
+        {
+          "method": "previous_day",
+          "runningtype": [
+            "pos"
+          ]
+        }
+      ],
+      "without_previous_day": []
+    },
+    "1DTE": {
+      "with_previous_day": [
+        {
+          "method": "capital",
+          "runningtype": [
+            "pos"
+          ],
+          "runningdays": [
+            "1dte/0dte"
+          ]
+        },
+        {
+          "method": "previous_day",
+          "runningtype": [
+            "pos"
+          ],
+          "runningdays": [
+            "daily"
+          ]
+        }
+      ],
+      "without_previous_day": [
+        {
+          "method": "capital"
+        }
+      ]
+    },
+    "4DTE": {
+      "with_previous_day": [
+        {
+          "method": "capital"
+        }
+      ],
+      "without_previous_day": [
+        {
+          "method": "capital"
+        }
+      ]
+    }
+  },
+  "subcategories": {
+    "CC": {
+      "action": "check",
+      "pct": 100.0
+    },
+    "MSJ": {
+      "action": "jexception"
+    },
+    "PRD": {
+      "action": "exclude",
+      "pct": 0,
+      "note": "not traded"
+    }
+  },
+  "broker_rules": {
+    "EXCELSTOCK": {
+      "method": "capital_pct",
+      "pct": 100
+    }
+  },
+  "fix": {
+    "enabled": true,
+    "column": "fix_cr",
+    "capital_multiplier": 10000000
+  },
+  "jainam": {
+    "sheet_name": "Jainam",
+    "userid_column": "UserID",
+    "allocation_column": "ALLOCATION",
+    "multiplier": 100000,
+    "exclude_userids": [
+      "total",
+      "grand total",
+      ""
+    ]
+  },
+  "zero_sl": {
+    "enabled": true,
+    "sl_column": "sl",
+    "max_loss_multiplier": 30
+  }
+}

@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Controls &middot; OMP{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Admin Controls</h1>
+      <p class="subtitle">Operations that act on a whole table.</p>
+    </div>
+  </div>
+
+  <div class="upload-grid">
+    <form class="upload-card" method="post"
+          action="{{ url_for('admin.save_all_users') }}">
+      <div class="upload-card-head">
+        <h2>Save All Users</h2>
+        <span class="target-mode append">{{ working_rows }} row(s)</span>
+      </div>
+
+      <p class="upload-note">
+        Stores the current All Users data against a date. Saving a date that
+        already holds data replaces it.
+      </p>
+
+      <label class="field">
+        <span class="field-label">Date</span>
+        <input type="date" name="date" value="{{ today }}" required>
+      </label>
+
+      <button class="btn-primary" type="submit"
+              {% if not working_rows %}disabled{% endif %}>Save All Users</button>
+
+      {% if not working_rows %}
+        <p class="upload-note">Nothing to save &mdash; upload All Users first.</p>
+      {% endif %}
+    </form>
+  </div>
+
+  {# ---------------- SubCategory rules ---------------- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_subcategories') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Category rules</h2>
+        <p class="subtitle">
+          Expected allocation = running capital &times; this percentage, rounded.
+          Enter a <b>whole percentage</b>: <span class="mono">100</span> = 100%,
+          <span class="mono">60</span> = 60%, <span class="mono">0</span> = exclude.
+          Set the method to <i>Jainam sheet</i> for categories checked against
+          the Jainam table instead of capital.
+        </p>
+      </div>
+    </div>
+
+    {% if error_subcategories %}
+      <div class="flash flash-error">{{ error_subcategories }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="table-scroll" style="max-height:340px">
+        <table class="grid rules-table">
+          <thead>
+            <tr class="head-row">
+              <th>SubCategory</th>
+              <th class="num">% of capital</th>
+              <th>Method</th>
+              <th>Note</th>
+              <th class="col-select"></th>
+            </tr>
+          </thead>
+          <tbody id="subcatBody">
+            {% for row in subcategories %}
+              <tr>
+                <td><input name="name" value="{{ row.name }}" autocomplete="off"></td>
+                <td class="num"><input name="pct" type="number" step="1" min="0" max="100"
+                                       value="{{ row.pct }}"></td>
+                <td>
+                  <select name="method">
+                    {% for m in methods %}
+                      <option value="{{ m }}" {% if m == row.method %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td><input name="note" value="{{ row.note }}" autocomplete="off"></td>
+                <td class="col-select">
+                  <button class="row-drop" type="button" title="Remove">&times;</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" type="button" data-add="subcatBody">Add category</button>
+      <button class="btn-primary" type="submit">Save category rules</button>
+    </div>
+  </form>
+
+  {# ---------------- Broker rules ---------------- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_brokers') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Broker rules</h2>
+        <p class="subtitle">
+          Per-broker overrides matched on the All Users <b>Broker</b> column.
+          These outrank the Fixed, Jainam and category rules.
+          <i>% of capital</i> takes that share of running capital;
+          <i>From FIX (CR)</i> derives it from the FIX column
+          (multiplier 1,00,000 means FIX 1 &rarr; 1,00,000).
+        </p>
+      </div>
+    </div>
+
+    {% if error_brokers %}
+      <div class="flash flash-error">{{ error_brokers }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="table-scroll" style="max-height:260px">
+        <table class="grid rules-table">
+          <thead>
+            <tr class="head-row">
+              <th>Broker</th>
+              <th>Rule</th>
+              <th class="num">Value</th>
+              <th class="col-select"></th>
+            </tr>
+          </thead>
+          <tbody id="brokerBody">
+            {% for row in brokers %}
+              <tr>
+                <td><input name="name" value="{{ row.name }}" autocomplete="off"></td>
+                <td>
+                  <select name="method">
+                    {% for m in broker_methods %}
+                      <option value="{{ m }}" {% if m == row.method %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td class="num"><input name="value" type="number" step="any"
+                                       value="{{ row.value }}"></td>
+                <td class="col-select">
+                  <button class="row-drop" type="button" title="Remove">&times;</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" type="button" data-add="brokerBody">Add broker</button>
+      <button class="btn-primary" type="submit">Save broker rules</button>
+    </div>
+  </form>
+
+  <p class="upload-note">
+    Rounding is chosen per run on the <a href="{{ url_for('admin.setup') }}">Setup</a> tab.
+    Every save keeps the previous version as
+    <span class="mono">allocation_rules.json.bak</span>.
+  </p>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    // Add / remove rows. A blank name is ignored on save, so an empty row is
+    // harmless and there is nothing to validate here.
+    document.querySelectorAll("[data-add]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var body = document.getElementById(button.dataset.add);
+        var row = body.rows[0].cloneNode(true);
+        row.querySelectorAll("input").forEach(function (i) { i.value = ""; });
+        var sel = row.querySelector("select");
+        if (sel) sel.selectedIndex = 0;
+        body.appendChild(row);
+        bindDrop(row);
+        row.querySelector("input").focus();
+      });
+    });
+
+    function bindDrop(scope) {
+      scope.querySelectorAll(".row-drop").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var body = b.closest("tbody");
+          if (body.rows.length > 1) b.closest("tr").remove();
+          else b.closest("tr").querySelectorAll("input")
+                .forEach(function (i) { i.value = ""; });
+        });
+      });
+    }
+
+    bindDrop(document);
+  </script>
+{% endblock %}
