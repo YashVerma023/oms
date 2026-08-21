@@ -7,6 +7,8 @@ rules editor - must keep working even when that stack is unavailable.
 
 from __future__ import annotations
 
+import calendar
+import datetime as dt
 import json
 import logging
 from pathlib import Path
@@ -17,6 +19,21 @@ RULES_PATH = Path(__file__).resolve().parent.parent / "config" / "allocation_rul
 
 # Used when the file is unreadable, so the UI still offers the known modes.
 FALLBACK_MODES = ("0DTE", "1DTE", "4DTE")
+
+# DTE filter key -> the all_users column it constrains.
+DTE_COLUMNS = {"runningtype": "Running Type", "runningdays": "Running Days"}
+
+# date.weekday() -> the key used in the rules file.
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+# Used when the rules file has no schedule. Saturday and Sunday are absent by
+# design: they are manual-only.
+DEFAULT_WEEKDAY_MODES = {
+    "mon": "1DTE", "tue": "0DTE", "wed": "1DTE", "thu": "0DTE", "fri": "4DTE",
+}
+
+# Filters nothing. Used when no mode applies, so a gap never hides users.
+FALLBACK_MODE = "0DTE"
 
 
 def rules_text() -> str:
@@ -46,6 +63,146 @@ def modes() -> tuple[str, ...]:
 def previous_day_required(mode: str) -> bool:
     """Whether `mode` refuses to run without a previous-day date."""
     return mode in set(rules_dict().get("previous_day", {}).get("required", []))
+
+
+def scheduled_mode(on_date: dt.date) -> str | None:
+    """The mode the weekly schedule gives `on_date`, or None if it has none.
+
+    Saturday and Sunday deliberately have no entry: weekends are set by hand.
+    """
+    weekday = WEEKDAYS[on_date.weekday()]
+    schedule = rules_dict().get("weekday_modes") or DEFAULT_WEEKDAY_MODES
+    mode = str(schedule.get(weekday) or "").strip()
+    return mode if mode in modes() else None
+
+
+def manual_mode(on_date: dt.date) -> str | None:
+    """The hand-picked mode for `on_date`, or None if nobody set one.
+
+    The pick is stored against a date so it expires on its own. A permanent
+    override would mean the schedule never ran again after a single manual
+    change.
+    """
+    block = rules_dict().get("today_mode")
+    if not isinstance(block, dict):
+        return None                       # older undated shape: treat as unset
+
+    if str(block.get("date") or "") != on_date.isoformat():
+        return None
+
+    mode = str(block.get("mode") or "").strip()
+    return mode if mode in modes() else None
+
+
+def today_mode(on_date: dt.date | None = None) -> str:
+    """The DTE mode in force for `on_date` (today by default).
+
+    Manual pick first, then the weekly schedule. Falls back to 0DTE - which
+    filters nothing - on weekends and whenever the rules file is unreadable,
+    because a broken setting must never silently hide users.
+    """
+    on_date = on_date or dt.date.today()
+    return manual_mode(on_date) or scheduled_mode(on_date) or FALLBACK_MODE
+
+
+def mode_state(on_date: dt.date | None = None) -> dict:
+    """Everything the UI needs to explain which mode is in force, and why."""
+    on_date = on_date or dt.date.today()
+    manual = manual_mode(on_date)
+    scheduled = scheduled_mode(on_date)
+    return {
+        "date": on_date.isoformat(),
+        "weekday": on_date.strftime("%A"),
+        "mode": manual or scheduled or FALLBACK_MODE,
+        "manual": manual,
+        "scheduled": scheduled,
+        "source": "manual" if manual else ("schedule" if scheduled else "default"),
+    }
+
+
+def dte_text(mode: str) -> str:
+    """What `mode` admits, in words: 'Running Type POS, Running Days Daily'."""
+    from core import rules  # local import: keeps this module's imports stdlib
+
+    options = {
+        "runningtype": rules.RUNNING_TYPE_OPTIONS,
+        "runningdays": rules.RUNNING_DAYS_OPTIONS,
+    }
+
+    block = dte_filter(mode)
+    if not block:
+        return "every user"
+
+    # Stored lowercase; shown in the same casing as the edit dropdowns.
+    return ", ".join(
+        "{} {}".format(
+            DTE_COLUMNS[key],
+            " or ".join(rules.canonical(v, options[key]) for v in values),
+        )
+        for key, values in block.items()
+    )
+
+
+def dte_summary() -> dict[str, str]:
+    """One readable line per mode, for the Admin Controls card."""
+    return {mode: dte_text(mode) for mode in modes()}
+
+
+def schedule_rows(today: dt.date | None = None) -> list[dict]:
+    """The weekly plan, for display. Days with no entry are manual-only."""
+    today = today or dt.date.today()
+    schedule = rules_dict().get("weekday_modes") or DEFAULT_WEEKDAY_MODES
+    return [
+        {
+            "day": calendar.day_name[index],
+            "mode": schedule.get(key) or "",
+            "today": index == today.weekday(),
+        }
+        for index, key in enumerate(WEEKDAYS)
+    ]
+
+
+def dte_filter(mode: str) -> dict[str, list[str]]:
+    """Running Type / Running Days a mode admits, lowercased.
+
+    An empty dict means 'no restriction'. The lists come straight from
+    `dte_filters` in the rules file, so the dashboard and the allocation check
+    can never disagree about what 4DTE means.
+    """
+    block = rules_dict().get("dte_filters", {}).get(mode) or {}
+    out: dict[str, list[str]] = {}
+    for key in ("runningtype", "runningdays"):
+        values = block.get(key)
+        if values:
+            out[key] = [str(v).strip().lower() for v in values]
+    return out
+
+
+def save_today_mode(mode: str, on_date: dt.date | None = None, by: str = "") -> None:
+    """Pin the DTE mode for `on_date`, or clear the pin when `mode` is blank.
+
+    Clearing hands the day back to the weekly schedule. The pick is dated, so
+    it lapses by itself once the day is over.
+
+    Raises:
+        ValueError: the mode is not one the rules file defines.
+    """
+    on_date = on_date or dt.date.today()
+    token = (mode or "").strip()
+    rules = rules_dict()
+
+    if not token:
+        rules.pop("today_mode", None)
+        _write(rules)
+        logger.info("DTE mode for %s handed back to the schedule by %s", on_date, by)
+        return
+
+    if token not in modes():
+        raise ValueError(f"'{mode}' is not one of {', '.join(modes())}.")
+
+    rules["today_mode"] = {"mode": token, "date": on_date.isoformat(), "by": by}
+    _write(rules)
+    logger.info("DTE mode for %s pinned to %s by %s", on_date, token, by)
 
 
 # ---------------------------------------------------------------------------

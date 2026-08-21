@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import bindparam, text
 
+from core import alias_rule
 from core import allocation_check as ac
 from database.db import db
 
@@ -277,7 +278,7 @@ def run_check(
     if not ok:
         logger.error("Allocation reconciliation failed: %s", message)
 
-    rows = _rows_for_display(consolidated, attributes)
+    rows = _rows_for_display(consolidated, attributes, mode)
     return {
         "rows": rows,
         "in_scope": int(len(in_scope)),
@@ -302,9 +303,57 @@ def _attributes(in_scope: pd.DataFrame) -> dict[str, dict[str, Any]]:
     }
 
 
+def _apply_alias_rule(rows: list[dict[str, Any]], mode: str) -> None:
+    """Price algos 8/19/27 off the alias size, in place.
+
+    Those algos sit in `excluded_algos`, so every one of their accounts arrives
+    here as 'Not under check' - except MSJ, which is exempted upstream and
+    already carries a Jainam result. Only untouched rows are rewritten, so the
+    Jainam accounts and the row count both stay exactly as the engine left them.
+    """
+    priced = skipped = 0
+
+    for row in rows:
+        if row.get("status") != ac.STATUS_NOT_CHECKED:
+            continue                      # MSJ, or checked by another rule
+        if not alias_rule.handles(row.get("algo")):
+            continue
+
+        if alias_rule.share(row.get("algo"), mode) == alias_rule.SKIP:
+            row["rule"] = alias_rule.RULE_LABEL
+            row["remark"] = f"Algo {alias_rule.algo_key(row.get('algo'))} does not run on {mode}"
+            skipped += 1
+            continue
+
+        expected = alias_rule.allocation(row.get("alias"), row.get("algo"), mode)
+        if expected is None:
+            row["rule"] = alias_rule.RULE_LABEL
+            row["remark"] = (
+                alias_rule.ZERO_REMARK if alias_rule.size(row.get("alias")) is not None
+                else alias_rule.NO_SUFFIX_REMARK
+            )
+            skipped += 1
+            continue
+
+        current = row.get("current")
+        matches = current is not None and Decimal(str(current)) == expected
+        row["rule"] = alias_rule.RULE_LABEL
+        row["expected"] = float(expected)
+        row["status"] = ac.STATUS_MATCH if matches else ac.STATUS_MISMATCH
+        row["remark"] = "" if matches else "Allocation differs from the alias size"
+        priced += 1
+
+    if priced or skipped:
+        logger.info(
+            "Alias rule (%s): %d account(s) priced from the alias, %d skipped.",
+            mode, priced, skipped,
+        )
+
+
 def _rows_for_display(
     consolidated: pd.DataFrame,
     attributes: dict[str, dict[str, Any]] | None = None,
+    mode: str = "",
 ) -> list[dict[str, Any]]:
     """Consolidated frame -> plain JSON-safe dicts, mismatches first."""
     if consolidated.empty:
@@ -340,10 +389,16 @@ def _rows_for_display(
         for name in ("server", "algo", "operator_name"):
             out[name] = clean(extra.get(name))
 
+        rows.append(out)
+
+    # Runs before `apply` is set: the alias rule turns 'Not under check' rows
+    # into real Match/Mismatch results, and those are what may be written.
+    _apply_alias_rule(rows, mode)
+
+    for out in rows:
         out["apply"] = (
             out["status"] == ac.STATUS_MISMATCH and out["expected"] is not None
         )
-        rows.append(out)
 
     order = {ac.STATUS_MISMATCH: 0, ac.STATUS_MATCH: 1}
     rows.sort(key=lambda r: (order.get(r["status"], 2), str(r["userid"])))

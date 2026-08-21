@@ -38,6 +38,13 @@
       ]
     }
   },
+  "weekday_modes": {
+    "mon": "1DTE",
+    "tue": "0DTE",
+    "wed": "1DTE",
+    "thu": "0DTE",
+    "fri": "4DTE"
+  },
   "previous_day": {
     "required": [
       "0DTE"
@@ -110,15 +117,62 @@
   "subcategories": {
     "CC": {
       "action": "check",
-      "pct": 100.0
+      "pct": 100
     },
-    "MSJ": {
-      "action": "jexception"
+    "CCG": {
+      "action": "check",
+      "pct": 100
+    },
+    "CCV": {
+      "action": "check",
+      "pct": 100
+    },
+    "MSS": {
+      "action": "check",
+      "pct": 100
+    },
+    "MSV": {
+      "action": "check",
+      "pct": 100
+    },
+    "MSR": {
+      "action": "check",
+      "pct": 100
+    },
+    "MSP": {
+      "action": "check",
+      "pct": 100
+    },
+    "MSN": {
+      "action": "check",
+      "pct": 100
+    },
+    "PVT": {
+      "action": "check",
+      "pct": 100
+    },
+    "PGB": {
+      "action": "check",
+      "pct": 100
+    },
+    "PPS": {
+      "action": "check",
+      "pct": 100
+    },
+    "MS": {
+      "action": "check",
+      "pct": 100
+    },
+    "MSRG": {
+      "action": "check",
+      "pct": 100
     },
     "PRD": {
       "action": "exclude",
-      "pct": 0,
-      "note": "not traded"
+      "pct": 0
+    },
+    "MSJ": {
+      "action": "jexception"
     }
   },
   "broker_rules": {
@@ -147,5 +201,10 @@
     "enabled": true,
     "sl_column": "sl",
     "max_loss_multiplier": 30
+  },
+  "today_mode": {
+    "mode": "4DTE",
+    "date": "2026-08-21",
+    "by": "admin@gmail.com"
   }
 }

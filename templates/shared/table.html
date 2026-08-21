@@ -30,6 +30,16 @@
     <button class="tool icon" id="btnExport" type="button" title="Download CSV">
       <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
     </button>
+    {% if export_url %}
+      {# Distinct from the plain CSV button: this one exports upload-format
+         files per server, not the table as shown. #}
+      <button class="tool" id="btnExportFiles" type="button" title="{{ export_title }}">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>
+        </svg>
+        <span>Server CSVs</span>
+      </button>
+    {% endif %}
     <button class="tool icon" id="btnReload" type="button"
             title="Refresh data and recalculate derived columns">
       <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
@@ -127,9 +137,12 @@
       deleteUrl: {{ (delete_url or '') | tojson }},
       deleteKey: {{ (delete_key or []) | tojson }},
       dateColumn: {{ (date_column or '') | tojson }},
-      selectedDate: {{ (selected_date or '') | tojson }}
+      selectedDate: {{ (selected_date or '') | tojson }},
+      exportUrl: {{ (export_url or '') | tojson }}
     };
   </script>
+  <script src="{{ url_for('static', filename='js/filters.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/download-files.js') }}"></script>
   <script src="{{ url_for('static', filename='js/choice-filter.js') }}"></script>
   <script src="{{ url_for('static', filename='js/table.js') }}"></script>
 {% endblock %}

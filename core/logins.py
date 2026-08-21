@@ -14,17 +14,19 @@ logger = logging.getLogger(__name__)
 
 # Roles the portal recognises. Kept here so the add-user form and the access
 # decorators agree on one list.
-ROLES = ("superadmin", "admin", "data", "operator", "crm")
+ROLES = ("superadmin", "admin", "operator", "crm")
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def list_logins() -> list[dict[str, Any]]:
+    # Sorted by the ROLES order above rather than a second hardcoded list, so
+    # adding or removing a role cannot leave the two out of step.
+    order = ", ".join(f"'{r}'" for r in ROLES)
     rows = db.session.execute(
         text(
             "SELECT `id`, `role`, `name`, `email`, `password`, `created_at` "
-            "FROM `login` ORDER BY FIELD(`role`, 'superadmin', 'admin', "
-            "'data', 'operator', 'crm'), `name`"
+            f"FROM `login` ORDER BY FIELD(`role`, {order}), `name`"
         )
     ).mappings().all()
     return [dict(row) for row in rows]

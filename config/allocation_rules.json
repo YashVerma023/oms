@@ -38,6 +38,13 @@
       ]
     }
   },
+  "weekday_modes": {
+    "mon": "1DTE",
+    "tue": "0DTE",
+    "wed": "1DTE",
+    "thu": "0DTE",
+    "fri": "4DTE"
+  },
   "previous_day": {
     "required": [
       "0DTE"

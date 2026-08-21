@@ -22,7 +22,6 @@ bp = Blueprint("auth", __name__)
 ROLE_HOME: dict[str, str] = {
     "superadmin": "admin.dashboard",
     "admin": "admin.dashboard",
-    "data": "admin.dashboard",
     "operator": "admin.dashboard",
     "crm": "admin.dashboard",
 }

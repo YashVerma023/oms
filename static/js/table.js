@@ -61,46 +61,10 @@
 
   // ---- filtering -----------------------------------------------------------
 
-  // Numeric filters accept: >10  <50  >=10  <=50  10-20  10,20  or a plain number.
-  function numericMatch(value, expr) {
-    if (value === null || value === "") return false;
-    var num = parseFloat(value);
-    if (isNaN(num)) return false;
-
-    return expr.split(";").every(function (part) {
-      part = part.trim();
-      if (!part) return true;
-
-      var m = part.match(/^(>=|<=|>|<|=)\s*(-?\d*\.?\d+)$/);
-      if (m) {
-        var n = parseFloat(m[2]);
-        switch (m[1]) {
-          case ">":  return num > n;
-          case "<":  return num < n;
-          case ">=": return num >= n;
-          case "<=": return num <= n;
-          default:   return num === n;
-        }
-      }
-
-      var range = part.match(/^(-?\d*\.?\d+)\s*[-,]\s*(-?\d*\.?\d+)$/);
-      if (range) {
-        var lo = parseFloat(range[1]), hi = parseFloat(range[2]);
-        return num >= Math.min(lo, hi) && num <= Math.max(lo, hi);
-      }
-
-      return String(value).toLowerCase().indexOf(part.toLowerCase()) !== -1;
-    });
-  }
-
-  function isBlank(value) {
-    return value === null || value === undefined || String(value).trim() === "";
-  }
-
-  function textMatch(value, needle) {
-    return String(value === null ? "" : value).toLowerCase()
-      .indexOf(needle.toLowerCase()) !== -1;
-  }
+  // Filter semantics live in filters.js so the pivot behaves identically.
+  var numericMatch = window.OMPFilter.numeric;
+  var isBlank = window.OMPFilter.isBlank;
+  var textMatch = window.OMPFilter.text;
 
   function applyFilters() {
     var g = state.global.trim().toLowerCase();
@@ -517,6 +481,12 @@
     $("btnReload").addEventListener("click", reconcileThenLoad);
     $("btnExport").addEventListener("click", exportCsv);
     if ($("btnDelete")) $("btnDelete").addEventListener("click", deleteSelected);
+    if ($("btnExportFiles")) $("btnExportFiles").addEventListener("click", exportFiles);
+  }
+
+  // Per-server files, built by the server. See static/js/download-files.js.
+  function exportFiles() {
+    window.OMPDownload(cfg.exportUrl, setStatus, $("btnExportFiles"));
   }
 
   function exportCsv() {

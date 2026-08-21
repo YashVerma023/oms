@@ -3,4 +3,134 @@
 {% block title %}Dashboard &middot; OMP{% endblock %}
 
 {% block content %}
+  <div class="page-head">
+    <div>
+      <h1>Today's Pulse: Numbers in Motion</h1>
+      <p class="subtitle">
+        Live count of users across algos, servers and categories.
+        Algo 0 is excluded. <span id="pivotMode"></span>
+      </p>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-label">Users</span>
+        <span class="stat-value" id="totUsers">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">CC</span>
+        <span class="stat-value" id="totCC">--</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">MS</span>
+        <span class="stat-value" id="totMS">--</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input class="search" id="pivotSearch" type="search"
+           placeholder="Search..." autocomplete="off">
+
+    {% if not locked %}
+      <div class="tool date-pick" id="pivotDateWrap" title="Show a date">
+        <svg viewBox="0 0 24 24">
+          <rect x="3" y="5" width="18" height="16" rx="2"/>
+          <path d="M3 10h18M8 3v4M16 3v4"/>
+        </svg>
+        <input type="date" id="pivotDate" value="{{ today }}">
+      </div>
+    {% endif %}
+
+    <button class="tool icon" id="btnPivotExport" type="button" title="Download CSV">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+    </button>
+    <button class="tool icon" id="btnPivotReload" type="button" title="Refresh">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+    </button>
+  </div>
+
+  <div class="panel">
+    <div class="table-scroll">
+      <table class="grid pivot" id="pivotTable">
+        <thead>
+          <tr class="head-row">
+            {# The two chevrons drive the whole tree, matching the row controls. #}
+            <th class="col-expand">
+              <div class="expand-tools">
+                <button class="caret" id="btnCollapse" type="button" title="Collapse all">
+                  <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <button class="caret" id="btnExpand" type="button" title="Expand all">
+                  <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6M6 4l6 6 6-6"/></svg>
+                </button>
+              </div>
+            </th>
+
+            {% for col in [('name', 'Name', ''), ('users', 'Users', 'num'),
+                           ('CC', 'CC', 'num'), ('MS', 'MS', 'num')] %}
+              <th class="{{ col[2] }}">
+                <button class="th-sort" type="button" data-col="{{ col[0] }}">
+                  <span>{{ col[1] }}</span>
+                  <svg class="sort-icon" viewBox="0 0 24 24">
+                    <path d="M8 10l4-4 4 4M8 14l4 4 4-4"/>
+                  </svg>
+                </button>
+              </th>
+            {% endfor %}
+          </tr>
+
+          <tr class="filter-row">
+            <th class="col-expand"></th>
+            <th>
+              <input class="col-filter" type="search" data-col="name" data-type="text"
+                     autocomplete="off" placeholder="Search..."
+                     title="Contains match.&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
+            </th>
+            {% for name in ['users', 'CC', 'MS'] %}
+              <th>
+                <input class="col-filter" type="search" data-col="{{ name }}"
+                       data-type="number" autocomplete="off"
+                       placeholder="&gt;10; &lt;50; 10, 20"
+                       title="Supports >10  <50  10-20  or a plain number.">
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody id="pivotBody"></tbody>
+      </table>
+    </div>
+
+    <div class="table-empty" id="pivotEmpty" hidden>No data to display.</div>
+  </div>
+
+  <div class="table-foot">
+    <span id="pivotCount">0 algo(s).</span>
+    <span class="table-status" id="pivotStatus"></span>
+    <div class="pager">
+      <label for="pivotPageSize">Rows per page</label>
+      <select id="pivotPageSize">
+        <option>10</option>
+        <option>25</option>
+        <option selected>50</option>
+        <option>100</option>
+      </select>
+      <span id="pivotPageLabel">Page 1 of 1</span>
+      <button class="pg" id="pivotFirst" type="button" title="First">&laquo;</button>
+      <button class="pg" id="pivotPrev" type="button" title="Previous">&lsaquo;</button>
+      <button class="pg" id="pivotNext" type="button" title="Next">&rsaquo;</button>
+      <button class="pg" id="pivotLast" type="button" title="Last">&raquo;</button>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    window.OMP_PIVOT = {
+      dataUrl: "{{ url_for('admin.dashboard_data') }}",
+      today: {{ today | tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/filters.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 {% endblock %}

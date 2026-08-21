@@ -35,6 +35,59 @@
         <p class="upload-note">Nothing to save &mdash; upload All Users first.</p>
       {% endif %}
     </form>
+
+    <form class="upload-card" method="post"
+          action="{{ url_for('admin.save_today_mode') }}">
+      <div class="upload-card-head">
+        <h2>Today's DTE Mode</h2>
+        <span class="target-mode {{ 'replace' if mode_state.manual else 'append' }}">
+          {{ mode_state.mode }}{{ ' (pinned)' if mode_state.manual }}
+        </span>
+      </div>
+
+      <p class="upload-note">
+        Narrows the Dashboard to the users trading today.
+        {% if mode_state.scheduled %}
+          {{ mode_state.weekday }} is scheduled as <strong>{{ mode_state.scheduled }}</strong>.
+        {% else %}
+          {{ mode_state.weekday }} has no schedule &mdash; weekends are set by hand.
+        {% endif %}
+        A pinned mode wins, and lapses at the end of the day.
+      </p>
+
+      <label class="field">
+        <span class="field-label">Mode</span>
+        <select name="mode">
+          <option value="">
+            Follow the schedule{% if mode_state.scheduled %} ({{ mode_state.scheduled }}){% else %} (none - {{ fallback_mode }}){% endif %}
+          </option>
+          {% for m in modes %}
+            <option value="{{ m }}" {% if m == mode_state.manual %}selected{% endif %}>
+              Pin to {{ m }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <button class="btn-primary" type="submit">Save DTE Mode</button>
+
+      <table class="mini-table">
+        <tbody>
+          {% for row in schedule %}
+            <tr class="{{ 'is-today' if row.today }}">
+              <td>{{ row.day }}</td>
+              <td class="num">{{ row.mode or 'Manual only' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p class="upload-note">
+        {% for name, rule in dte_rules.items() %}
+          <strong>{{ name }}</strong> &mdash; {{ rule }}{% if not loop.last %}<br>{% endif %}
+        {% endfor %}
+      </p>
+    </form>
   </div>
 
   {# ---------------- SubCategory rules ---------------- #}

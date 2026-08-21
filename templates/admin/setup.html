@@ -62,6 +62,12 @@
       <button class="btn-primary" id="btnApply" type="button" disabled>
         Apply selected
       </button>
+      {# Reads the database, so it reflects whatever has been applied. #}
+      <button class="tool" id="btnDownloadUsersetting" type="button"
+              title="One usersetting CSV per server, ready to upload">
+        <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+        <span>Usersetting CSVs</span>
+      </button>
     </div>
 
     <p class="upload-note" id="setupNote">
@@ -176,9 +182,11 @@
   <script>
     window.OMP_SETUP = {
       runUrl: "{{ url_for('admin.setup_run') }}",
-      applyUrl: "{{ url_for('admin.setup_apply') }}"
+      applyUrl: "{{ url_for('admin.setup_apply') }}",
+      usersettingUrl: "{{ url_for('admin.download_usersetting') }}"
     };
   </script>
+  <script src="{{ url_for('static', filename='js/download-files.js') }}"></script>
   <script src="{{ url_for('static', filename='js/choice-filter.js') }}"></script>
   <script src="{{ url_for('static', filename='js/setup.js') }}"></script>
 {% endblock %}

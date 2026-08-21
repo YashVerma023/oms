@@ -234,6 +234,12 @@
   $("btnApply").addEventListener("click", apply);
   $("setupSearch").addEventListener("input", render);
 
+  // Reads the database, so it hands back whatever has been applied so far -
+  // no need to have run the check first.
+  $("btnDownloadUsersetting").addEventListener("click", function () {
+    window.OMPDownload(cfg.usersettingUrl, note, $("btnDownloadUsersetting"));
+  });
+
   $("btnSelectAll").addEventListener("click", function () {
     // Only what is currently on screen, so a filter narrows the selection too.
     rows.forEach(function (r) { if (r.apply && visible(r)) r._checked = true; });

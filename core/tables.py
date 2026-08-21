@@ -99,6 +99,9 @@ TABLE_PAGES: dict[str, dict[str, Any]] = {
         "reorder": {"after": "Broker", "columns": ("server", "algo", "Remarks")},
         # Refresh re-derives algo before refetching.
         "reconcile_endpoint": "admin.reconcile_usersetting",
+        # One CSV per server, in the platform's upload format.
+        "export_endpoint": "admin.download_usersetting",
+        "export_title": "Download one CSV per server, ready to upload",
     },
     "server-config": {
         "table": "server_config",

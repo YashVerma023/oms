@@ -719,6 +719,20 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 
 .upload-note { margin: -4px 0 12px; color: var(--muted); font-size: 12px; }
 
+/* Compact reference table inside a card - the weekly DTE schedule. */
+.mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.mini-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.mini-table td.num { text-align: right; font-weight: 600; }
+.mini-table tr:last-child td { border-bottom: 0; }
+.mini-table .is-today td { color: var(--accent); background: var(--surface-2); }
+
 /* ---------- Rules tables (Admin Controls) ---------- */
 
 .rules-block { margin-top: 24px; }
@@ -1114,3 +1128,56 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 
 /* Wide tables scroll horizontally rather than squashing columns. */
 .panel { overflow-x: auto; }
+
+/* ---------- Dashboard pivot ---------- */
+
+.pivot .col-expand { width: 68px; text-align: center !important; }
+.expand-tools { display: flex; align-items: center; gap: 2px; }
+
+/* Every cell is a chip filling its column, so the header label and the value
+   underneath share one centre line. */
+.pivot th.num, .pivot td.num { text-align: center; }
+.pivot th.num .th-sort { justify-content: center; }
+.pivot td.num .chip { display: block; min-width: 0; }
+.pivot td { padding: 7px 14px; }
+.pivot .col-filter { min-width: 92px; }
+
+.caret {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: transform .15s ease;
+}
+
+.caret:hover { color: var(--accent); background: var(--surface-2); }
+.caret.open { transform: rotate(90deg); color: var(--text); }
+
+.pivot-name {
+  min-width: 0;
+  padding: 7px 14px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Each level reads a step lighter than the one above it. */
+.pivot .kind-algo .pivot-name { background: var(--chip); font-weight: 700; }
+.pivot .kind-server .pivot-name { background: var(--surface-2); }
+.pivot .kind-subcategory .pivot-name {
+  background: none;
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+.pivot .kind-user .pivot-name {
+  background: none;
+  border: 1px solid var(--border);
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.pivot .kind-algo td { border-bottom-color: var(--accent); }

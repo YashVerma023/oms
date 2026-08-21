@@ -5,11 +5,16 @@ from __future__ import annotations
 import datetime as dt
 import logging
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Blueprint, Response, abort, flash, jsonify, redirect, render_template,
+    request, session, url_for,
+)
 
 import access
 from auth import roles_required
-from core import all_users, crud, derive, rules, rules_io
+# Aliased: the view below is also called `dashboard`.
+from core import dashboard as pivot
+from core import all_users, crud, derive, rules, rules_io, usersetting_export
 from core.importer import IMPORT_SPECS, import_sheet
 from core.tables import TABLE_PAGES, as_of, default_date, fetch_rows, get_columns
 from core.tables import delete_rows as delete_table_rows
@@ -42,7 +47,32 @@ def _setup_unavailable(exc: Exception) -> str:
 @bp.route("/")
 @roles_required(*ALLOWED)
 def dashboard():
-    return render_template("admin/dashboard.html")
+    return render_template(
+        "admin/dashboard.html",
+        today=dt.date.today().isoformat(),
+        # Operators cannot browse other dates here either.
+        locked=access.is_operator(),
+    )
+
+
+@bp.route("/api/dashboard")
+@roles_required(*ALLOWED)
+def dashboard_data():
+    """The algo/server/subcategory/user pivot for one date."""
+    raw = (request.args.get("date") or "").strip()
+    if access.is_operator() or not raw:
+        on_date = dt.date.today()
+    else:
+        try:
+            on_date = dt.date.fromisoformat(raw)
+        except ValueError:
+            return jsonify(error="That is not a valid date."), 400
+
+    try:
+        return jsonify(pivot.build(on_date, access.operator_servers()))
+    except Exception:
+        logger.exception("Building the dashboard pivot failed")
+        return jsonify(error="Could not build the dashboard - see logs/omp.log."), 500
 
 
 @bp.route("/table/<page_key>")
@@ -90,6 +120,11 @@ def table(page_key: str):
             page.get("date_column") if not access.locked_to_today(page_key) else None
         ),
         selected_date=default_date(page_key),
+        # Per-server file download, on the pages that define one.
+        export_url=(
+            url_for(page["export_endpoint"]) if page.get("export_endpoint") else None
+        ),
+        export_title=page.get("export_title", "Download files"),
     )
 
 
@@ -197,6 +232,11 @@ def _controls_page(**overrides):
         "brokers": rules_io.broker_rows(),
         "methods": rules_io.METHODS,
         "broker_methods": rules_io.BROKER_METHODS,
+        "modes": rules_io.modes(),
+        "mode_state": rules_io.mode_state(),
+        "schedule": rules_io.schedule_rows(),
+        "fallback_mode": rules_io.FALLBACK_MODE,
+        "dte_rules": rules_io.dte_summary(),
         "error_subcategories": None,
         "error_brokers": None,
     }
@@ -254,6 +294,59 @@ def save_brokers():
         logger.exception("Saving the broker rules failed")
         flash("Could not save the broker rules - see logs/omp.log.", "error")
         return redirect(url_for("admin.controls"))
+
+
+@bp.route("/usersetting/download", methods=["GET"])
+@roles_required(*ALLOWED)
+def download_usersetting():
+    """One usersetting CSV per server, in the platform's upload format.
+
+    Admins get every server; an operator gets only the servers assigned to
+    them in Server Config, the same scoping the tabs use.
+    """
+    try:
+        files, orphans = usersetting_export.build(access.operator_servers())
+    except Exception:
+        logger.exception("Usersetting export failed")
+        return jsonify(error="Could not build the files - see logs/omp.log."), 500
+
+    if not files:
+        return jsonify(error="No usersetting rows to export."), 404
+
+    if len(files) == 1:
+        name, body = files[0]
+        response = Response(body, mimetype="text/csv")
+    else:
+        name = usersetting_export.archive_name()
+        response = Response(usersetting_export.zipped(files), mimetype="application/zip")
+
+    response.headers["Content-Disposition"] = f'attachment; filename="{name}"'
+    # Read by the browser so the page can say what was left out.
+    response.headers["X-OMP-Files"] = str(len(files))
+    response.headers["X-OMP-Skipped"] = ",".join(orphans)
+    return response
+
+
+@bp.route("/controls/today-mode", methods=["POST"])
+@roles_required("admin", "superadmin")
+def save_today_mode():
+    """Pin the DTE mode the Dashboard filters by, or hand it back to the schedule."""
+    mode = request.form.get("mode", "")
+    try:
+        rules_io.save_today_mode(mode, by=session.get("email", ""))
+        state = rules_io.mode_state()
+        flash(
+            f"Dashboard pinned to {mode} for today."
+            if mode
+            else f"Dashboard follows the schedule: {state['mode']} today.",
+            "success",
+        )
+    except ValueError as exc:
+        flash(str(exc), "error")
+    except Exception:
+        logger.exception("Saving today's DTE mode failed")
+        flash("Could not save the DTE mode - see logs/omp.log.", "error")
+    return redirect(url_for("admin.controls"))
 
 
 @bp.route("/setup", methods=["GET"])
