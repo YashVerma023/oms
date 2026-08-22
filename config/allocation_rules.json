@@ -201,5 +201,10 @@
     "enabled": true,
     "sl_column": "sl",
     "max_loss_multiplier": 30
+  },
+  "today_mode": {
+    "mode": "0DTE",
+    "date": "2026-08-22",
+    "by": "superadmin@gmail.com"
   }
 }

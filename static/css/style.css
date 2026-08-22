@@ -1136,7 +1136,11 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 
 /* Every cell is a chip filling its column, so the header label and the value
    underneath share one centre line. */
+/* The .num variants are repeated deliberately: `.grid td.num` sets right
+   alignment at the same specificity as `.pivot td`, and would win otherwise. */
+.pivot th, .pivot td,
 .pivot th.num, .pivot td.num { text-align: center; }
+.pivot .th-sort,
 .pivot th.num .th-sort { justify-content: center; }
 .pivot td.num .chip { display: block; min-width: 0; }
 .pivot td { padding: 7px 14px; }
@@ -1159,9 +1163,13 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .caret.open { transform: rotate(90deg); color: var(--text); }
 
 .pivot-name {
+  display: block;
   min-width: 0;
   padding: 7px 14px;
-  text-align: left;
+  /* Centred like every other column. Depth still reads off the left edge:
+     the inline margin-left pushes each level in, so a deeper chip is
+     narrower and starts further right. */
+  text-align: center;
   white-space: nowrap;
 }
 

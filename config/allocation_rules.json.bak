@@ -201,10 +201,5 @@
     "enabled": true,
     "sl_column": "sl",
     "max_loss_multiplier": 30
-  },
-  "today_mode": {
-    "mode": "4DTE",
-    "date": "2026-08-21",
-    "by": "admin@gmail.com"
   }
 }
