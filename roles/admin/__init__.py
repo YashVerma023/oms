@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
 
 from flask import (
@@ -14,9 +15,13 @@ import access
 from auth import roles_required
 # Aliased: the view below is also called `dashboard`.
 from core import dashboard as pivot
-from core import all_users, crud, derive, rules, rules_io, usersetting_export
+from core import all_users, crud, derive, personal, rules, rules_io, usersetting_export
+from core import data_ops as data_ops_core
+from database import schema
 from core.importer import IMPORT_SPECS, import_sheet
 from core.tables import TABLE_PAGES, as_of, default_date, fetch_rows, get_columns
+from core.tables import date_column as table_date_column
+from core.tables import nav_pages, subtabs as table_subtabs
 from core.tables import delete_rows as delete_table_rows
 
 logger = logging.getLogger(__name__)
@@ -83,6 +88,20 @@ def table(page_key: str):
         abort(404)
 
     page = TABLE_PAGES[page_key]
+
+    # A sub-tab whose table has not been built yet: show the strip and an
+    # explanation, and touch none of the query paths.
+    if page.get("pending"):
+        return render_template(
+            "shared/table.html",
+            page_key=page_key,
+            title=page["title"],
+            columns=[],
+            pending=True,
+            subtabs=table_subtabs(page_key),
+            nav_key=page.get("group") or page_key,
+        )
+
     editable = page_key in crud.EDITABLE and access.can_edit(page_key)
 
     edit_url = None
@@ -116,8 +135,11 @@ def table(page_key: str):
         ),
         delete_key=list(page.get("delete_key", ())) if access.can_delete() else [],
         # Calendar control, present only on dated pages an operator may browse.
+        # Resolved against the live table: a user-built page only gets the
+        # calendar once its Date column actually exists.
         date_column=(
-            page.get("date_column") if not access.locked_to_today(page_key) else None
+            table_date_column(page_key)
+            if not access.locked_to_today(page_key) else None
         ),
         selected_date=default_date(page_key),
         # Per-server file download, on the pages that define one.
@@ -125,6 +147,8 @@ def table(page_key: str):
             url_for(page["export_endpoint"]) if page.get("export_endpoint") else None
         ),
         export_title=page.get("export_title", "Download files"),
+        subtabs=table_subtabs(page_key),
+        nav_key=page.get("group") or page_key,
     )
 
 
@@ -134,6 +158,10 @@ def table_data(page_key: str):
     """Row data for a table page, consumed by static/js/table.js."""
     if page_key not in TABLE_PAGES:
         abort(404)
+
+    # A sub-tab with no table yet answers empty rather than querying nothing.
+    if TABLE_PAGES[page_key].get("pending"):
+        return jsonify(columns=[], rows=[], date=None)
 
     on_date = (request.args.get("date") or "").strip() or None
     # An operator cannot reach another date by editing the query string.
@@ -155,6 +183,8 @@ def delete_rows(page_key: str):
         abort(404)
     if not access.can_delete():
         return jsonify(error="Your role cannot delete rows."), 403
+    if TABLE_PAGES[page_key].get("pending"):
+        return jsonify(error="That table has not been created yet."), 400
 
     payload = request.get_json(silent=True) or {}
     try:
@@ -294,6 +324,151 @@ def save_brokers():
         logger.exception("Saving the broker rules failed")
         flash("Could not save the broker rules - see logs/omp.log.", "error")
         return redirect(url_for("admin.controls"))
+
+
+@bp.route("/personal/rebuild", methods=["POST"])
+@roles_required(*ALLOWED)
+def rebuild_personal():
+    """Rebuild the Personal view for one date from All Users.
+
+    Wired to the tab's refresh button, so pressing it rebuilds the day on
+    screen rather than merely refetching.
+    """
+    payload = request.get_json(silent=True) or {}
+    raw = (payload.get("date") or "").strip()
+    try:
+        on_date = dt.date.fromisoformat(raw) if raw else dt.date.today()
+    except ValueError:
+        return jsonify(error="That is not a valid date."), 400
+
+    try:
+        result = personal.rebuild(on_date)
+    except personal.PersonalError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception:
+        logger.exception("Rebuilding Personal failed")
+        return jsonify(error="Could not rebuild Personal - see logs/omp.log."), 500
+
+    message = (
+        f"Personal rebuilt for {result['date']}: {result['written']} account(s) "
+        f"from {', '.join(result['account_types'])}."
+    )
+    if result["unmapped"]:
+        message += (
+            " No source in All Users for: " + ", ".join(result["unmapped"]) + "."
+        )
+
+    # `updated`/`checked` are what the table page's refresh button reports.
+    return jsonify(
+        updated=result["written"], checked=result["written"], message=message
+    )
+
+
+@bp.route("/data-ops", methods=["GET"])
+@roles_required("admin", "superadmin")
+def data_ops():
+    """Data Operation: create a table by hand or from a sheet."""
+    return render_template(
+        "admin/data_ops.html",
+        types=data_ops_core.TYPES,
+        reserved=sorted(schema.TABLES),
+    )
+
+
+@bp.route("/data-ops/tables", methods=["GET"])
+@roles_required("admin", "superadmin")
+def data_ops_tables():
+    """Tables with no page of their own, for the sidebar list."""
+    try:
+        return jsonify(tables=data_ops_core.extra_tables())
+    except Exception:
+        logger.exception("Listing the additional tables failed")
+        return jsonify(error="Could not list the tables - see logs/omp.log."), 500
+
+
+@bp.route("/data-ops/table/<name>", methods=["GET"])
+@roles_required("admin", "superadmin")
+def data_ops_table(name: str):
+    """Structure and row count of one additional table."""
+    try:
+        return jsonify(data_ops_core.describe(name))
+    except data_ops_core.DataOpError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception:
+        logger.exception("Describing table '%s' failed", name)
+        return jsonify(error="Could not read the table - see logs/omp.log."), 500
+
+
+@bp.route("/data-ops/table/<name>/rows", methods=["GET"])
+@roles_required("admin", "superadmin")
+def data_ops_rows(name: str):
+    """A page of data from one additional table."""
+    try:
+        return jsonify(data_ops_core.rows(
+            name,
+            limit=request.args.get("limit", type=int) or data_ops_core.MAX_PAGE,
+            offset=request.args.get("offset", type=int) or 0,
+        ))
+    except data_ops_core.DataOpError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception:
+        logger.exception("Reading rows of '%s' failed", name)
+        return jsonify(error="Could not read the table - see logs/omp.log."), 500
+
+
+@bp.route("/data-ops/inspect", methods=["POST"])
+@roles_required("admin", "superadmin")
+def data_ops_inspect():
+    """Read an uploaded sheet and suggest a schema for it.
+
+    Returns the worksheet names instead when an Excel file has more than one
+    and none has been chosen yet.
+    """
+    upload = request.files.get("file")
+    if not upload or not upload.filename:
+        return jsonify(error="Choose a file first."), 400
+
+    sheet = (request.form.get("sheet") or "").strip() or None
+    try:
+        names = data_ops_core.sheet_names(upload.stream, upload.filename)
+        upload.stream.seek(0)
+        if names and len(names) > 1 and sheet is None:
+            return jsonify(sheets=names)
+
+        return jsonify(data_ops_core.inspect(upload.stream, upload.filename, sheet))
+    except data_ops_core.DataOpError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception as exc:                    # noqa: BLE001 - shown to the user
+        logger.exception("Inspecting '%s' failed", upload.filename)
+        return jsonify(error=f"Could not read the file: {exc}"), 400
+
+
+@bp.route("/data-ops/create", methods=["POST"])
+@roles_required("admin", "superadmin")
+def data_ops_create():
+    """Create the table, loading the uploaded rows when a file is supplied."""
+    table = request.form.get("table", "")
+    sheet = (request.form.get("sheet") or "").strip() or None
+
+    try:
+        columns = json.loads(request.form.get("columns") or "[]")
+    except json.JSONDecodeError:
+        return jsonify(error="The column list was not readable."), 400
+
+    upload = request.files.get("file")
+    stream = upload.stream if upload and upload.filename else None
+
+    try:
+        result = data_ops_core.create_table(
+            table, columns, stream, upload.filename if stream else "", sheet
+        )
+        logger.info("Table '%s' created by %s", result["table"], session.get("email"))
+        return jsonify(result)
+    except data_ops_core.DataOpError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception:
+        logger.exception("Creating a table failed")
+        return jsonify(error="Could not create the table - see logs/omp.log."), 500
 
 
 @bp.route("/usersetting/download", methods=["GET"])

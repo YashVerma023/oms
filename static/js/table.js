@@ -529,18 +529,32 @@
     button.classList.add("spinning");
 
     var step = cfg.reconcileUrl
-      ? fetch(cfg.reconcileUrl, { method: "POST", headers: { "Accept": "application/json" } })
-          .then(function (r) { return r.json(); })
+      // The date goes with it: on a dated page the endpoint rebuilds the day
+      // on screen, not whatever today happens to be.
+      ? fetch(cfg.reconcileUrl, {
+          method: "POST",
+          headers: { "Accept": "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify({ date: state.date || "" })
+        })
+          .then(function (r) {
+            return r.json().then(function (body) {
+              if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+              return body;
+            });
+          })
           .then(function (result) {
-            if (result.updated) {
+            if (result.message) setStatus(result.message, "ok");
+            else if (result.updated) {
               console.info("Reconciled " + result.updated + " of " +
                            result.checked + " row(s).");
             }
             return result;
           })
           .catch(function (err) {
-            // A failed reconcile must not stop the refresh.
+            // A failed reconcile must not stop the refresh, but it must be
+            // visible rather than buried in the console.
             console.error("Reconcile failed:", err);
+            setStatus(err.message, "warn");
           })
       : Promise.resolve();
 

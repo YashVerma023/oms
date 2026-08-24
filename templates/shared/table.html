@@ -5,6 +5,28 @@
 {% block title %}{{ title }} &middot; OMP{% endblock %}
 
 {% block content %}
+  {# Pages that share a navbar tab show their siblings here. #}
+  {% if subtabs %}
+    <nav class="subtabs">
+      {% for tab in subtabs %}
+        <a class="subtab {% if tab.current %}active{% endif %}"
+           href="{{ url_for('admin.table', page_key=tab.key) }}">
+          {{ tab.label }}{% if tab.pending %}<span class="subtab-dot" title="Table not built yet"></span>{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  {% if pending %}
+    <div class="panel placeholder">
+      <p><strong>{{ title }} is not built yet.</strong></p>
+      <p class="muted">
+        The table behind this view has not been created. Once it exists, this
+        tab shows it with the same filters, sorting and export as the others.
+      </p>
+    </div>
+  {% else %}
+
   {% if as_of %}
     <p class="as-of">{{ as_of }}</p>
   {% endif %}
@@ -122,9 +144,11 @@
       <button class="pg" id="pgLast" type="button" title="Last">&raquo;</button>
     </div>
   </div>
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}
+  {% if not pending %}
   <script>
     window.OMP_TABLE = {
       dataUrl: "{{ url_for('admin.table_data', page_key=page_key) }}",
@@ -145,4 +169,5 @@
   <script src="{{ url_for('static', filename='js/download-files.js') }}"></script>
   <script src="{{ url_for('static', filename='js/choice-filter.js') }}"></script>
   <script src="{{ url_for('static', filename='js/table.js') }}"></script>
+  {% endif %}
 {% endblock %}

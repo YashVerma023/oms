@@ -167,7 +167,10 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         table="usersetting",
         title="Usersetting",
         kind="csv",
-        pk=("User ID",),
+        # Shared accounts (FEED, dealer logins) legitimately appear in several
+        # servers' files, so the account alone is not unique - the server is
+        # part of the key. It comes from the file name, not the sheet.
+        pk=("User ID", "server"),
         # Rows 1-6 are comment lines; row 7 holds the headers.
         header_row=7,
         # Settings arrive as one CSV per server; several can be loaded at once.
@@ -459,12 +462,16 @@ def _parse_one(
         )
 
     positions = {c["name"]: i for c, i in matched}
-    missing_pk = [name for name in spec.pk if name not in positions]
+    # Part of the key can come from the file name or the form rather than the
+    # sheet - usersetting is keyed on User ID + server, and server is in the
+    # file name. Only the rest has to be present as a column.
+    sheet_pk = [name for name in spec.pk if name not in supplied]
+    missing_pk = [name for name in sheet_pk if name not in positions]
     if missing_pk:
         raise ValueError(
             f"{filename}: key column(s) {', '.join(missing_pk)} missing from the sheet"
         )
-    pk_positions = [positions[name] for name in spec.pk]
+    pk_positions = [positions[name] for name in sheet_pk]
 
     used = {i for _, i in matched}
     for header in (h for i, h in enumerate(headers) if h and i not in used):
@@ -509,7 +516,9 @@ def _parse_one(
                 if column["data_type"] == "decimal":
                     values[column["name"]] = _fit_decimal(values[column["name"]], column)
 
-        key = "\x1f".join(str(part).strip() for part in key_parts)
+        # Built from the assembled row, so key parts that came from the file
+        # name count too.
+        key = "\x1f".join(str(values.get(name, "")).strip() for name in spec.pk)
         parsed.append((key, {_param(name): value for name, value in values.items()}))
 
     return matched, parsed

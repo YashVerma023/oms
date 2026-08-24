@@ -164,11 +164,14 @@ def build_uri() -> str:
 def init_app(app: Flask) -> None:
     """Provision the database and tables if needed, then bind Flask-SQLAlchemy."""
     # Local import: schema imports this module.
-    from database.schema import ensure_columns, ensure_default_admin, ensure_tables
+    from database.schema import (
+        ensure_columns, ensure_default_admin, ensure_primary_keys, ensure_tables,
+    )
 
     ensure_database()
     ensure_tables()
-    ensure_columns()   # apply columns added to the DDL since the table was made
+    ensure_columns()       # apply columns added to the DDL since the table was made
+    ensure_primary_keys()  # and keys that have gained a column since then
     ensure_default_admin()
     app.config["SQLALCHEMY_DATABASE_URI"] = build_uri()
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False

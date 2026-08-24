@@ -23,9 +23,72 @@ logger = logging.getLogger(__name__)
 # Hard cap so a bad filter can never pull an unbounded result set into memory.
 MAX_ROWS: int = 5000
 
+# Pages that share one navbar tab. The first key is the tab itself and owns the
+# nav entry; the rest appear only as sub-tabs inside it, so adding a view here
+# takes it out of the navbar automatically.
+TABLE_GROUPS: dict[str, tuple[str, ...]] = {
+    "all-users": (
+        "all-users", "jainam", "category", "incidents",
+        "positional", "exceptions", "personal",
+    ),
+}
+
+# Sub-tabs whose table does not exist yet. They render an empty view saying so
+# rather than 404ing, and are skipped by every query path.
+PENDING: dict[str, dict[str, Any]] = {
+    key: {
+        "table": table,
+        "title": title,
+        "label": label,
+        "group": "all-users",
+        "pending": True,
+    }
+    for key, table, title, label in (
+        ("positional", "positional", "Positional", "Positional"),
+        ("exceptions", "exceptions", "Exceptions", "Exceptions"),
+    )
+}
+
+# Views over tables built through Data Operation. `date_column` is honoured
+# only once the table actually has that column - see `date_column()` - so these
+# pages work whether or not Date has been added yet.
+BUILT: dict[str, dict[str, Any]] = {
+    "category": {
+        "table": "category",
+        "title": "Category",
+        "label": "Category",
+        "group": "all-users",
+        "hidden": ("id", "created_at", "updated_at"),
+        "date_column": "Date",
+        "where": None,
+    },
+    # The table is `incident`, singular, as created.
+    "incidents": {
+        "table": "incident",
+        "title": "Incidents",
+        "label": "Incidents",
+        "group": "all-users",
+        "hidden": ("id", "created_at", "updated_at"),
+        "where": None,
+    },
+    "personal": {
+        "table": "personal",
+        "title": "Personal",
+        "label": "Personal",
+        "group": "all-users",
+        "hidden": ("id", "created_at", "updated_at"),
+        "date_column": "Date",
+        "where": None,
+        # Refresh rebuilds the day from all_users rather than reloading.
+        "reconcile_endpoint": "admin.rebuild_personal",
+    },
+}
+
 TABLE_PAGES: dict[str, dict[str, Any]] = {
     "all-users": {
         "table": "all_users",
+        # The sub-tab caption; `title` stays the page heading.
+        "label": "Main",
         # Rows are identified by the surrogate id: userId alone is no longer
         # unique now that snapshots share it.
         "delete_key": ("id",),
@@ -51,6 +114,9 @@ TABLE_PAGES: dict[str, dict[str, Any]] = {
         "table": "jainam",
         "delete_key": ("Date", "UserID"),
         "title": "Jainam",
+        # Reached through the All Users tab, not from the navbar.
+        "group": "all-users",
+        "label": "Jainam",
         "hidden": ("created_at",),
         "order_by": "`UserID`",
         # Today's rows, or failing that the most recent earlier date.
@@ -84,7 +150,9 @@ TABLE_PAGES: dict[str, dict[str, Any]] = {
     },
     "usersetting": {
         "table": "usersetting",
-        "delete_key": ("User ID",),
+        # An account can be on more than one server, so the server is part of
+        # the key - deleting must not take the same account off every server.
+        "delete_key": ("User ID", "server"),
         "title": "Usersetting",
         "hidden": ("created_at", "updated_at"),
         "order_by": "`server`, `User ID`",
@@ -128,9 +196,67 @@ TABLE_PAGES: dict[str, dict[str, Any]] = {
 _NUMERIC_TYPES = {"decimal", "int", "bigint", "smallint", "mediumint", "tinyint", "float", "double"}
 
 
+# Views over user-built tables, then the ones with no table at all: a sub-tab
+# can be opened before its table exists.
+TABLE_PAGES.update(BUILT)
+TABLE_PAGES.update(PENDING)
+
+
+def column_names(table: str) -> set[str]:
+    """Lowercased column names of `table`, empty if it does not exist."""
+    rows = db.session.execute(
+        text(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table"
+        ),
+        {"schema": get_config()["database"], "table": table},
+    ).scalars().all()
+    return {str(name).lower() for name in rows}
+
+
+def date_column(page_key: str) -> str | None:
+    """The page's date column, but only if the table really has it.
+
+    Tables built through Data Operation may gain their Date column after the
+    page is registered. Until then the page behaves as an undated one instead
+    of failing on every query.
+    """
+    page = get_page(page_key)
+    name = page.get("date_column")
+    if not name:
+        return None
+    return name if name.lower() in column_names(page["table"]) else None
+
+
 def get_page(page_key: str) -> dict[str, Any]:
     """Look up a page config, raising KeyError for anything not whitelisted."""
     return TABLE_PAGES[page_key]
+
+
+def nav_pages() -> dict[str, dict[str, Any]]:
+    """Pages that get their own navbar entry - group members are nested."""
+    return {
+        key: page for key, page in TABLE_PAGES.items() if not page.get("group")
+    }
+
+
+def subtabs(page_key: str) -> list[dict[str, Any]]:
+    """The sub-tabs of the group `page_key` belongs to, or [] if it has none."""
+    owner = TABLE_PAGES.get(page_key, {}).get("group") or page_key
+    keys = TABLE_GROUPS.get(owner, ())
+    if page_key not in keys:
+        return []
+
+    return [
+        {
+            "key": key,
+            "label": TABLE_PAGES[key].get("label", TABLE_PAGES[key]["title"]),
+            "current": key == page_key,
+            "pending": bool(TABLE_PAGES[key].get("pending")),
+        }
+        for key in keys
+        if key in TABLE_PAGES
+    ]
 
 
 def get_columns(page_key: str) -> list[dict[str, str]]:
@@ -282,7 +408,7 @@ def delete_rows(page_key: str, keys: list[list[Any]]) -> int:
 def available_dates(page_key: str) -> list[str]:
     """Dates this page holds data for, newest first."""
     page = get_page(page_key)
-    column = page.get("date_column")
+    column = date_column(page_key)
     if not column:
         return []
 
@@ -302,7 +428,7 @@ def default_date(page_key: str) -> str | None:
     every time, showing an empty table if nothing has been uploaded yet, rather
     than silently presenting an older day as if it were current.
     """
-    if not get_page(page_key).get("date_column"):
+    if not date_column(page_key):
         return None
     return dt.date.today().isoformat()
 
@@ -327,11 +453,12 @@ def fetch_rows(
     params: dict[str, Any] = {}
     statement_params: list[Any] = []
     date_clause = ""
-    if page.get("date_column"):
+    dated = date_column(page_key)
+    if dated:
         chosen = on_date or default_date(page_key)
         if chosen is None:
             return []
-        date_clause = f"`{page['date_column']}` = :on_date"
+        date_clause = f"`{dated}` = :on_date"
         params["on_date"] = chosen
 
     # Operator restriction. An operator with no servers sees nothing, rather
@@ -363,10 +490,11 @@ def fetch_rows(
     conditions = [c for c in (page.get("where"), date_clause, scope_clause) if c]
     where = f"WHERE {' AND '.join(conditions)} " if conditions else ""
 
-    sql = (
-        f"SELECT {select_list} FROM `{page['table']}` {where}"
-        f"ORDER BY {page['order_by']} LIMIT {MAX_ROWS}"
-    )
+    # Optional: a page over a user-built table has no natural sort column, and
+    # the browser sorts anyway. Required would mean a 500 on every such page.
+    order = f"ORDER BY {page['order_by']} " if page.get("order_by") else ""
+
+    sql = f"SELECT {select_list} FROM `{page['table']}` {where}{order}LIMIT {MAX_ROWS}"
 
     statement = text(sql)
     if statement_params:

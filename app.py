@@ -16,7 +16,7 @@ from flask import Flask, jsonify, redirect, session, url_for
 from sqlalchemy import text
 
 import auth
-from core.tables import TABLE_PAGES
+from core.tables import nav_pages
 from database.db import db, init_app, setup_logging
 from roles.admin import bp as admin_bp
 from roles.superadmin import bp as superadmin_bp
@@ -44,7 +44,7 @@ def create_app() -> Flask:
     @app.context_processor
     def inject_nav():
         """Nav links are driven by the table page registry."""
-        return {"table_pages": TABLE_PAGES}
+        return {"table_pages": nav_pages()}
 
     @app.route("/")
     def index():

@@ -448,11 +448,24 @@ def apply_changes(
             [{**r, "d": on_date} for r in rows],
         ).rowcount
 
-        # Remarks carries the allocation figure, not prose.
-        remarks = db.session.execute(
-            text("UPDATE `usersetting` SET `Remarks` = :value WHERE `User ID` = :pk"),
-            [{"pk": r["pk"], "value": _plain(r["value"])} for r in rows],
-        ).rowcount
+        # Remarks carries the allocation figure, not prose. An account can now
+        # exist on several servers; the figure belongs to the account, so every
+        # copy of it gets the same value - except for an operator, who may only
+        # write on the servers assigned to them.
+        remarks_sql = "UPDATE `usersetting` SET `Remarks` = :value WHERE `User ID` = :pk"
+        remarks_params = [
+            {"pk": r["pk"], "value": _plain(r["value"])} for r in rows
+        ]
+        if servers is not None:
+            remarks_sql += " AND `server` IN :servers"
+            statement = text(remarks_sql).bindparams(
+                bindparam("servers", expanding=True)
+            )
+            remarks_params = [{**p, "servers": servers} for p in remarks_params]
+        else:
+            statement = text(remarks_sql)
+
+        remarks = db.session.execute(statement, remarks_params).rowcount
 
         db.session.commit()
     except Exception:

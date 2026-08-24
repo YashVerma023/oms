@@ -47,11 +47,16 @@
       <a class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}"
          href="{{ url_for('admin.dashboard') }}">Dashboard</a>
       {% for key, cfg in table_pages.items() %}
-        <a class="nav-item {% if page_key == key %}active{% endif %}"
+        {# nav_key is the group owner, so All Users stays lit on its sub-tabs. #}
+        <a class="nav-item {% if page_key == key or nav_key == key %}active{% endif %}"
            href="{{ url_for('admin.table', page_key=key) }}">{{ cfg.title }}</a>
       {% endfor %}
       <a class="nav-item {% if request.endpoint == 'admin.setup' %}active{% endif %}"
          href="{{ url_for('admin.setup') }}">Setup</a>
+      {% if session.get('role') in ('admin', 'superadmin') %}
+        <a class="nav-item {% if request.endpoint == 'admin.data_ops' %}active{% endif %}"
+           href="{{ url_for('admin.data_ops') }}">Data Operation</a>
+      {% endif %}
       {% endblock %}
     </nav>
 

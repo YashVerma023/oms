@@ -1,0 +1,17 @@
+# Please fill all values carefully. ANY VALUE WHICH IS NOT REQUIRED CAN BE LEFT BLANK.
+# For Boolean, True / False OR Yes / No can be used.
+# For NRML SqOff, 0 = None, 1 = All, 2 = Today
+# For Time, enter like 15:15:00.
+# Password & PIN: These are only required if you have selected for Auto Login. Auto login internally fills user details in browser for easy login. It is totally optional feature.
+# Broker: Zerodha, AliceBlue etc.
+Enabled,User Alias,User ID,Broker,API Key,API Secret,Historical API,SquareOff Time,Auto Login,Password,Pin,Max Profit,Max Loss,Qty on MaxLoss PerTrade,Max Loss Per Trade,Max Open Trades,Telegram ID(s),Email,Qty Multiplier,Trading Authorization Req,SqOff NRML Orders,Qty By Exposure,API User Details,SqOff CNC Orders,ProfitLocking,MaxLossWaitSec,TwoFA,LIMIT Only, LIMIT Type,LIMIT Spread,MaxModifications,LimitModificationGapTime,API Version,Proxy,OrderPerSecond,MaxChaseLimit,Remarks
+False,MSS_SHYAM_INVESTMENT_INT,R0299FOUR,ExcelStock_Xts,XTS10,DCLIENT,False,00:00:00,False,,,0,240000,False,0,0,,,1,False,2,0,,False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,49.249.181.146|9002,0,40%,0
+False,MSR_A7_SHREESHYAM_INT,S0393ONE,ExcelStock_Xts,XTS13,DCLIENT,False,00:00:00,False,,,0,160000,False,0,0,,,1,False,2,0,,False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,49.249.181.146|9002,0,40%,0
+False,A7_INT_DEALER,XTS10,ExcelStock_Xts,898ee179f2457d053e3851;8d2de44c52677790f56856,Kjdm273$hG;Atvg015#IF,False,00:00:00,False,,,0,0,False,0,0,,,1,False,2,0,,False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,49.249.181.146|9002,0,40%,0
+False,DEALER,DMAZETA2,ExcelStock_Xts,857c9e8c98590ae97ec963;eaab7484fb1d502a4ae798,Bkkc625$ve;Yqtt022@RF,False,00:00:00,False,,,0,0,False,0,0,,,1,False,2,0,,False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,49.249.181.146|9002,0,40%,0
+True,FEED,ZG0636,Zerodha,7chrkaoveq9u5gkk,6c0fudg1kv2rnjaq2v3e6valpsg5rlvd,False,00:00:00,True,smart123Z,AAYQAZDUQQOJJJSPWLXKB6PNX7YUJ447,0,0,False,0,0,,,1,False,1,0,Vivek Thebaria (ZG0636),False,0~0~0~0,0,,False,PriceSpread,2%,12,3,,,0,0,
+False,DEALER,XTS13,ExcelXtsPro,ce5373945699a3876ec472;b7cdd5e0ba0660f9fbb547,Vxsn625@mi;Kblf472@Ph,False,00:00:00,False,,,0,0,False,0,0,,,1,False,2,0,,False,0~0~0~0,0,,True,PriceSpread,155,3,2,,49.249.181.146|9002,0,40%,0
+False,MSR_A7_ZETADMA_INT,Z0004ONE,ExcelStock_Xts,DMAZETA2,DCLIENT,False,00:00:00,False,,,0,320000,False,0,0,,,1,False,2,0,,False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,49.249.181.146|9002,0,40%,0
+True,MSS_A7_GCLPRO_FIX_1CR_POS,ZPRO1,GCLBroking,b27656a927afc50241f398;0c382b6cc4511e75051809,Meda200#5s;Btui774#YP,False,00:00:00,False,,,0,180000,False,0,0,,,1,False,1,0,DealerID (ZPRO1),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,115.247.146.146|9002,0,40%,0
+True,MSS_A7_PS_FULL_POS,ZZJ17223,JAINAMSRED,4b49c0dda9671dd70f4510;85c2ebf1e2454560c54120,Lbjo367#B#;Fhqf326@ys,False,00:00:00,False,,,0,240000,False,0,0,,,1,False,1,0,DealerID (ZZJ17223),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,colo.srellp.com|9010,0,40%,0
+True,MSS_A7_RM_PRSNL_POS,AM008,AlphaMatrix,2367d7027c5df30e94b684;a1dec3a9bcfcac1074460,Ybmj337#XD;Sloi017@hT,False,00:00:00,False,,,0,900000,False,0,0,,,1,False,1,0,DealerID (AM008),False,0~0~0~0,0,,True,PriceSpread,15%,3,2,,10.124.0.42|11002|GT5|pass|False,0,40%,1500000

@@ -51,7 +51,7 @@ def render(route: str, out: Path) -> None:
 
     @app.context_processor
     def nav():
-        return {"table_pages": tables.TABLE_PAGES}
+        return {"table_pages": tables.nav_pages()}
 
     client = app.test_client()
     with client.session_transaction() as session:

@@ -134,12 +134,15 @@ CREATE TABLE `usersetting` (
     `OrderPerSecond`              INT             NULL,
     `MaxChaseLimit`               VARCHAR(16)     NULL,
     `Remarks`                     VARCHAR(255)    NULL,
-    `server`                      VARCHAR(32)     NULL,
+    `server`                      VARCHAR(32)     NOT NULL DEFAULT '',
     `algo`                        VARCHAR(8)      NULL,
     `created_at`                  TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`                  TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
                                                   ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`User ID`),
+    -- One row per account per server. A feed or dealer login is present in
+    -- several servers' files, each with that server's own settings, so the
+    -- account on its own is not unique.
+    PRIMARY KEY (`User ID`, `server`),
     KEY `idx_usersetting_broker` (`Broker`),
     KEY `idx_usersetting_server` (`server`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -345,6 +348,102 @@ def ensure_columns() -> list[str]:
     if added:
         logger.info("Added %s missing column(s): %s", len(added), ", ".join(added))
     return added
+
+
+_PRIMARY_KEY_CLAUSE = re.compile(r"^PRIMARY KEY\s*\((.+)\)$", re.IGNORECASE)
+
+
+def ddl_primary_key(table: str) -> list[str]:
+    """The primary key columns declared for `table`, in order."""
+    for clause in _split_definitions(TABLES[table]):
+        match = _PRIMARY_KEY_CLAUSE.match(clause.strip())
+        if match:
+            return [part.strip().strip("`") for part in match.group(1).split(",")]
+    return []
+
+
+def ensure_primary_keys() -> list[str]:
+    """Widen a primary key that has gained a column in the DDL.
+
+    Only *additions* are applied, and that restriction is what makes this safe
+    to run unattended: adding a column to a key cannot fail on duplicates,
+    because the existing key already guarantees uniqueness on a subset of the
+    new one. Narrowing a key can fail or lose rows, so it is reported and left
+    for a human.
+
+    A column joining the key must be NOT NULL, so any NULLs in it are filled
+    with the column's default first.
+
+    Returns:
+        Descriptions of the keys changed, e.g. "usersetting (User ID, server)".
+    """
+    present = existing_tables()
+    changed: list[str] = []
+
+    conn = _connect()
+    try:
+        cursor = conn.cursor()
+        try:
+            for table in TABLES:
+                if table.lower() not in present:
+                    continue
+
+                wanted = ddl_primary_key(table)
+                if not wanted:
+                    continue
+
+                cursor.execute(
+                    "SELECT COLUMN_NAME FROM information_schema.STATISTICS "
+                    "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s "
+                    "AND INDEX_NAME = 'PRIMARY' ORDER BY SEQ_IN_INDEX",
+                    (get_config()["database"], table),
+                )
+                actual = [row[0] for row in cursor.fetchall()]
+
+                if [c.lower() for c in actual] == [c.lower() for c in wanted]:
+                    continue
+
+                have = {c.lower() for c in actual}
+                if not have or not have.issubset({c.lower() for c in wanted}):
+                    logger.warning(
+                        "Primary key of `%s` is (%s) but the schema wants (%s). "
+                        "That is not a widening, so it needs a manual migration.",
+                        table, ", ".join(actual) or "none", ", ".join(wanted),
+                    )
+                    continue
+
+                definitions = dict(ddl_columns(table))
+                for column in wanted:
+                    if column.lower() in have:
+                        continue
+                    # A key column cannot be NULL.
+                    cursor.execute(
+                        f"UPDATE `{table}` SET `{column}` = '' WHERE `{column}` IS NULL"
+                    )
+                    cursor.execute(
+                        f"ALTER TABLE `{table}` MODIFY `{column}` {definitions[column]}"
+                    )
+
+                columns = ", ".join(f"`{c}`" for c in wanted)
+                cursor.execute(
+                    f"ALTER TABLE `{table}` DROP PRIMARY KEY, ADD PRIMARY KEY ({columns})"
+                )
+                changed.append(f"{table} ({', '.join(wanted)})")
+                logger.info(
+                    "Widened primary key of `%s` from (%s) to (%s)",
+                    table, ", ".join(actual), ", ".join(wanted),
+                )
+
+            conn.commit()
+        finally:
+            cursor.close()
+    except Exception:
+        logger.exception("Updating primary keys failed after: %s", changed or "none")
+        raise
+    finally:
+        conn.close()
+
+    return changed
 
 
 def existing_tables() -> set[str]:
