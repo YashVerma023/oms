@@ -7,13 +7,14 @@ the trailing `_<n>C` is the account size, and one unit of `n` is 100,000.
     MSR_AJAY_AGARWAL_2C   ->    200,000
     MSR_BANSAL_15C        ->  1,500,000
 
-Algos 19 and 27 take the full size on every DTE mode. Algo 8 splits it across
-the two expiries - the smaller half on 1DTE, the larger on 0DTE - and does not
-run at all on 4DTE:
+Algos 19 and 27 take the full size on every DTE mode. Algo 8 takes half of it
+on 1DTE, rounded down, and the whole of it on 0DTE, and does not run at all on
+4DTE:
 
-    5C  -> 1DTE 200,000   0DTE 300,000
-    4C  -> 1DTE 200,000   0DTE 200,000
-    15C -> 1DTE 700,000   0DTE 800,000
+    5C  -> 1DTE 200,000   0DTE   500,000
+    7C  -> 1DTE 300,000   0DTE   700,000
+    8C  -> 1DTE 400,000   0DTE   800,000
+    15C -> 1DTE 700,000   0DTE 1,500,000
 
 MSJ accounts are *not* handled here. They are exempt from the algo exclusion
 upstream and are already priced off the Jainam sheet, on every algo.
@@ -35,16 +36,15 @@ UNIT = Decimal("100000")
 # tolerant of the trailing spaces that turn up in the sheet.
 SUFFIX = re.compile(r"_(\d+(?:\.\d+)?)C\s*$", re.IGNORECASE)
 
-FULL = "full"        # the whole size, whatever the mode
+FULL = "full"        # the whole size
 LOWER_HALF = "lower" # floor(n / 2) - algo 8 on 1DTE
-UPPER_HALF = "upper" # ceil(n / 2)  - algo 8 on 0DTE
 SKIP = "skip"        # the algo does not trade in this mode
 
 # algo -> DTE mode -> share of the alias size. '*' applies to every mode.
 ALGO_SHARES: dict[str, dict[str, str]] = {
     "19": {"*": FULL},
     "27": {"*": FULL},
-    "8": {"1DTE": LOWER_HALF, "0DTE": UPPER_HALF, "4DTE": SKIP},
+    "8": {"1DTE": LOWER_HALF, "0DTE": FULL, "4DTE": SKIP},
 }
 
 RULE_LABEL = "Alias size"
@@ -112,12 +112,8 @@ def allocation(alias: Any, algo: Any, mode: str) -> Decimal | None:
     if which == FULL:
         value = units * UNIT
     else:
-        # Two expiries split the size. An odd size gives the extra unit to
-        # 0DTE: 5C is 2 + 3, never 3 + 2.
-        halved = units / 2
-        whole = halved.to_integral_value(rounding="ROUND_FLOOR")
-        if which == UPPER_HALF and halved != whole:
-            whole += 1
+        # Half, rounded down: 7C gives 3 on 1DTE, not 3.5 or 4.
+        whole = (units / 2).to_integral_value(rounding="ROUND_FLOOR")
         value = whole * UNIT
 
     # 1C on algo 8's 1DTE leg floors to nothing. Writing 0 would disable a live

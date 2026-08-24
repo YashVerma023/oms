@@ -12,6 +12,7 @@ import datetime as dt
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,320 @@ def broker_rows() -> list[dict]:
         value = cfg.get("pct") if method == BROKER_PCT else cfg.get("multiplier")
         rows.append({"name": name, "method": method, "value": value})
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Max loss
+# ---------------------------------------------------------------------------
+
+# Max loss = allocation x multiplier. Not a percentage despite the desk's
+# wording: an allocation of 10,000 at 2 gives a max loss of 20,000.
+DEFAULT_MAXLOSS_RULES = {
+    "4DTE": {"1": 2, "15": 2, "7": 1.8},
+    "1DTE": {"1": 2, "15": 2, "7": 1.8},
+    "0DTE": {"1": 1, "15": 1, "7": 0.8},
+}
+
+
+# Algos with their own max loss, which outrank everything else including the
+# SubCategory table: a CC account on algo 19 follows algo 19, not CC.
+#
+# A mode may name SHEET instead of multipliers, meaning "take that day's
+# uploaded Max Loss sheet". '*' covers every mode.
+SHEET = "sheet"
+
+DEFAULT_ALGO_MAXLOSS = {
+    "8": {
+        "1DTE": {"mstech": 1.4, "stoxxo": 1.4},
+        "0DTE": SHEET,
+    },
+    "19": {"*": {"mstech": 30, "stoxxo": 10}},
+    "27": {"*": {"mstech": 30, "stoxxo": 3}},
+}
+
+
+def algo_maxloss() -> dict[str, dict[str, Any]]:
+    """Algo -> mode -> {'mstech', 'stoxxo'} or SHEET."""
+    stored = rules_dict().get("maxloss_algo")
+    if not isinstance(stored, dict) or not stored:
+        return {k: dict(v) for k, v in DEFAULT_ALGO_MAXLOSS.items()}
+
+    out: dict[str, dict[str, Any]] = {}
+    for algo, block in stored.items():
+        key = str(algo).strip()
+        if not key or not isinstance(block, dict):
+            continue
+        modes_out: dict[str, Any] = {}
+        for mode, value in block.items():
+            if isinstance(value, str) and value.strip().lower() == SHEET:
+                modes_out[str(mode)] = SHEET
+            elif isinstance(value, dict):
+                modes_out[str(mode)] = {
+                    "mstech": float(value.get("mstech", 0)),
+                    "stoxxo": float(value.get("stoxxo", 0)),
+                }
+        if modes_out:
+            out[key] = modes_out
+    return out
+
+
+def algo_maxloss_for(algo: Any, mode: str) -> Any:
+    """The rule for one algo in one mode: a dict, SHEET, or None."""
+    from core import alias_rule
+
+    block = algo_maxloss().get(alias_rule.algo_key(algo))
+    if not block:
+        return None
+    return block.get(str(mode).strip()) or block.get("*")
+
+
+def algo_maxloss_rows() -> list[dict]:
+    """The algo table as rows, one column per mode and side, for the editor."""
+    rules = algo_maxloss()
+    rows = []
+    for algo in sorted(rules, key=lambda a: (float(a) if a.isdigit() else 1e9, a)):
+        row: dict[str, Any] = {"algo": algo}
+        for mode in modes():
+            value = rules[algo].get(mode) or rules[algo].get("*")
+            if value == SHEET:
+                row[f"{mode}_mstech"] = SHEET
+                row[f"{mode}_stoxxo"] = SHEET
+            elif isinstance(value, dict):
+                row[f"{mode}_mstech"] = value["mstech"]
+                row[f"{mode}_stoxxo"] = value["stoxxo"]
+            else:
+                row[f"{mode}_mstech"] = ""
+                row[f"{mode}_stoxxo"] = ""
+        rows.append(row)
+    return rows
+
+
+def save_algo_maxloss(rows: list[dict]) -> None:
+    """Replace the per-algo max loss overrides.
+
+    A cell holding the word 'sheet' means that mode takes the uploaded Max
+    Loss sheet. Both cells of a mode must agree on that. An empty pair means
+    the algo has no override for that mode.
+
+    Raises:
+        ValueError: a duplicate algo, a non-numeric value, or one side set to
+            'sheet' while the other is a number.
+    """
+    known = list(modes())
+    out: dict[str, dict[str, Any]] = {}
+    seen: set[str] = set()
+
+    for row in rows:
+        algo = str(row.get("algo") or "").strip()
+        if not algo:
+            continue
+        if algo in seen:
+            raise ValueError(f"Algo '{algo}' appears more than once.")
+        seen.add(algo)
+
+        block: dict[str, Any] = {}
+        for mode in known:
+            raw = {
+                side: str(row.get(f"{mode}_{side}", "") or "").strip()
+                for side in ("mstech", "stoxxo")
+            }
+            wants_sheet = {k: v.lower() == SHEET for k, v in raw.items()}
+
+            if all(wants_sheet.values()):
+                block[mode] = SHEET
+                continue
+            if any(wants_sheet.values()):
+                raise ValueError(
+                    f"Algo {algo}, {mode}: set both sides to 'sheet', or neither."
+                )
+            if not any(raw.values()):
+                continue
+
+            values: dict[str, float] = {}
+            for side, text_value in raw.items():
+                try:
+                    values[side] = float(text_value or 0)
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"Algo {algo}, {mode}: '{text_value}' is not a number."
+                    ) from None
+                if values[side] < 0:
+                    raise ValueError(
+                        f"Algo {algo}, {mode}: a multiplier cannot be negative."
+                    )
+            block[mode] = values
+
+        if block:
+            out[algo] = block
+
+    rules = rules_dict()
+    rules["maxloss_algo"] = out
+    _write(rules)
+
+
+# SubCategory overrides, which outrank the per-algo table. `mstech` is written
+# to all_users.max_loss, `stoxxo` to usersetting - both as multipliers of the
+# allocation, so 0 means a max loss of nothing, which is what these accounts
+# want in Stoxxo.
+DEFAULT_SUBCATEGORY_MAXLOSS = {
+    "CC": {"mstech": 30, "stoxxo": 0},
+    "CCG": {"mstech": 30, "stoxxo": 0},
+    "PGB": {"mstech": 30, "stoxxo": 0},
+    "PVT": {"mstech": 30, "stoxxo": 0},
+}
+
+
+def subcategory_maxloss() -> dict[str, dict[str, float]]:
+    """SubCategory -> {'mstech': multiplier, 'stoxxo': multiplier}."""
+    stored = rules_dict().get("maxloss_subcategory")
+    if not isinstance(stored, dict) or not stored:
+        return {k: dict(v) for k, v in DEFAULT_SUBCATEGORY_MAXLOSS.items()}
+
+    out: dict[str, dict[str, float]] = {}
+    for name, block in stored.items():
+        key = str(name).strip().upper()
+        if not key or not isinstance(block, dict):
+            continue
+        out[key] = {
+            "mstech": float(block.get("mstech", 0)),
+            "stoxxo": float(block.get("stoxxo", 0)),
+        }
+    return out
+
+
+def subcategory_maxloss_rows() -> list[dict]:
+    """The override table as rows, for the Admin Controls editor."""
+    return [
+        {"name": name, "mstech": block["mstech"], "stoxxo": block["stoxxo"]}
+        for name, block in sorted(subcategory_maxloss().items())
+    ]
+
+
+def save_subcategory_maxloss(rows: list[dict]) -> None:
+    """Replace the SubCategory overrides.
+
+    Unlike the per-algo table, 0 is allowed and meaningful here: it is how
+    these accounts are told to carry no Stoxxo limit. A blank cell is read as
+    0 for the same reason.
+
+    Raises:
+        ValueError: a duplicate SubCategory, or a value that is not a number.
+    """
+    out: dict[str, dict[str, float]] = {}
+
+    for row in rows:
+        name = str(row.get("name") or "").strip().upper()
+        if not name:
+            continue
+        if name in out:
+            raise ValueError(f"SubCategory '{name}' appears more than once.")
+
+        values: dict[str, float] = {}
+        for side in ("mstech", "stoxxo"):
+            raw = row.get(side, "")
+            if raw is None or str(raw).strip() == "":
+                values[side] = 0.0
+                continue
+            try:
+                values[side] = float(raw)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"SubCategory '{name}': '{raw}' is not a number."
+                ) from None
+            if values[side] < 0:
+                raise ValueError(
+                    f"SubCategory '{name}': a multiplier cannot be negative."
+                )
+        out[name] = values
+
+    rules = rules_dict()
+    rules["maxloss_subcategory"] = out
+    _write(rules)
+
+
+def maxloss_rules() -> dict[str, dict[str, float]]:
+    """DTE mode -> algo -> multiplier, as stored."""
+    stored = rules_dict().get("maxloss_rules")
+    if not isinstance(stored, dict) or not stored:
+        return {m: dict(a) for m, a in DEFAULT_MAXLOSS_RULES.items()}
+
+    out: dict[str, dict[str, float]] = {}
+    for mode in modes():
+        block = stored.get(mode) or {}
+        out[mode] = {
+            str(algo).strip(): float(value)
+            for algo, value in block.items()
+            if str(algo).strip()
+        }
+    return out
+
+
+def maxloss_multiplier(mode: str, algo: Any) -> float | None:
+    """The multiplier for one algo in one mode, or None if it has no rule."""
+    from core import alias_rule            # algo_key: '7', 7 and 7.0 agree
+
+    return maxloss_rules().get(mode, {}).get(alias_rule.algo_key(algo))
+
+
+def maxloss_algos() -> list[str]:
+    """Every algo any mode has a rule for, numerically sorted."""
+    seen = {a for block in maxloss_rules().values() for a in block}
+
+    def key(algo: str):
+        try:
+            return (0, float(algo), "")
+        except ValueError:
+            return (1, 0.0, algo)
+
+    return sorted(seen, key=key)
+
+
+def save_maxloss_rules(rows: list[dict]) -> None:
+    """Replace the max-loss table from Admin Controls.
+
+    Each row is {"algo": "7", "4DTE": 1.8, "1DTE": 1.8, "0DTE": 0.8}. An empty
+    cell means that algo has no rule in that mode, and is stored as absent
+    rather than as zero - zero would silently set a max loss of nothing.
+
+    Raises:
+        ValueError: a blank or duplicate algo, or a multiplier that is not a
+            positive number.
+    """
+    known = list(modes())
+    out: dict[str, dict[str, float]] = {mode: {} for mode in known}
+    seen: set[str] = set()
+
+    for row in rows:
+        algo = str(row.get("algo") or "").strip()
+        if not algo:
+            continue
+        if algo in seen:
+            raise ValueError(f"Algo '{algo}' appears more than once.")
+        seen.add(algo)
+
+        for mode in known:
+            raw = row.get(mode, "")
+            if raw is None or str(raw).strip() == "":
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"Algo {algo}, {mode}: '{raw}' is not a number."
+                ) from None
+            if value <= 0:
+                raise ValueError(
+                    f"Algo {algo}, {mode}: the multiplier must be above 0. "
+                    f"Leave it empty for 'no rule'."
+                )
+            out[mode][algo] = value
+
+    if not seen:
+        raise ValueError("At least one algo is required.")
+
+    rules = rules_dict()
+    rules["maxloss_rules"] = out
+    _write(rules)
 
 
 def rounding() -> dict:

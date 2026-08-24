@@ -71,8 +71,8 @@ def client(app: Flask, role: str = "admin"):
 
 
 # Built through Data Operation, so no longer placeholders.
-BUILT = ("category", "incidents", "personal")
-PENDING = ("positional", "exceptions")
+BUILT = ("category", "incidents", "personal", "positional")
+PENDING = ("exceptions",)
 
 
 def run() -> None:
@@ -95,6 +95,8 @@ def run() -> None:
            if t["key"] in BUILT and t["pending"]], [])
     check("Incidents points at the singular table",
           tables.TABLE_PAGES["incidents"]["table"], "incident")
+    check("Positional shows the maxloss sheet",
+          tables.TABLE_PAGES["positional"]["table"], "maxloss")
     check("a page in no group gets no strip", tables.subtabs("running"), [])
 
     app = make_app()
@@ -108,28 +110,28 @@ def run() -> None:
             # The grid script would fetch and fail; it must not be included.
             check(f"{key}: no grid script", "OMP_TABLE" in html, False)
 
-        html = client(app).get("/admin/table/positional").data.decode()
+        html = client(app).get("/admin/table/exceptions").data.decode()
         strip = re.search(r'<nav class="subtabs">.*?</nav>', html, re.S).group(0)
         check("strip lists every sibling", len(re.findall(r"<a class=\"subtab", strip)), 7)
         check("one is marked current", len(re.findall(r'class="subtab active"', strip)), 1)
-        check("the unbuilt ones are dotted", len(re.findall(r"subtab-dot", strip)), 2)
+        check("the unbuilt one is dotted", len(re.findall(r"subtab-dot", strip)), 1)
 
         navbar = re.search(r'<nav class="nav">.*?</nav>', html, re.S).group(0)
         check("Jainam is not in the navbar", "Jainam</a>" in navbar, False)
         check("All Users is still there", "All Users</a>" in navbar, True)
 
         print("\n-- the JSON endpoints know too --")
-        response = client(app).get("/admin/api/table/positional")
+        response = client(app).get("/admin/api/table/exceptions")
         check("rows endpoint answers empty",
               (response.status_code, json.loads(response.data)),
               (200, {"columns": [], "rows": [], "date": None}))
         check("delete is refused",
-              client(app).post("/admin/table/positional/delete",
+              client(app).post("/admin/table/exceptions/delete",
                                json={"keys": [["x"]]}).status_code, 400)
         check("an unknown page still 404s",
               client(app).get("/admin/table/nope").status_code, 404)
         check("operators see the sub-tabs too",
-              client(app, "operator").get("/admin/table/positional").status_code, 200)
+              client(app, "operator").get("/admin/table/exceptions").status_code, 200)
 
 
 if __name__ == "__main__":

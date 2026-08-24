@@ -34,6 +34,12 @@ RUNNING_DAYS_OPTIONS = (DLR_ACC, NOT_RUNNING, "Daily", "1DTE/0DTE", "0DTE")
 # Algo is forced to this for inactive users.
 INACTIVE_ALGO = "0"
 
+# Feed and dealer logins sit in usersetting under the same User ID as a real
+# account, on their own server row, with FEED in the alias. They place no
+# orders, so an allocation or a max loss must never be written onto them.
+# Appended to the WHERE clause of every usersetting write.
+EXCLUDE_FEED_SQL = " AND (`User Alias` IS NULL OR `User Alias` NOT LIKE '%FEED%')"
+
 
 def canonical(value: Any, options: tuple[str, ...]) -> Any:
     """Snap a value onto one of `options`, ignoring case and padding.

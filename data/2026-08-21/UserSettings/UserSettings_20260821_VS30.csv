@@ -1,0 +1,10 @@
+﻿# Please fill all values carefully. ANY VALUE WHICH IS NOT REQUIRED CAN BE LEFT BLANK.
+# For Boolean, True / False OR Yes / No can be used.
+# For NRML SqOff, 0 = None, 1 = All, 2 = Today
+# For Time, enter like 15:15:00.
+# Password & PIN: These are only required if you have selected for Auto Login. Auto login internally fills user details in browser for easy login. It is totally optional feature.
+# Broker: Zerodha, AliceBlue etc.
+Enabled,User Alias,User ID,Broker,API Key,API Secret,Historical API,SquareOff Time,Auto Login,Password,Pin,Max Profit,Max Loss,Qty on MaxLoss PerTrade,Max Loss Per Trade,Max Open Trades,Telegram ID(s),Email,Qty Multiplier,Trading Authorization Req,SqOff NRML Orders,Qty By Exposure,API User Details,SqOff CNC Orders,ProfitLocking,MaxLossWaitSec,TwoFA,LIMIT Only,LIMIT Type,LIMIT Spread,MaxModifications,LimitModificationGapTime,API Version,Proxy,OrderPerSecond,MaxChaseLimit,Remarks
+TRUE,MSS_A7_RM_PRSNL_POS,AM008,AlphaMatrix,2367d7027c5df30e94b684;a1dec3a9bcfcac1074460,Ybmj337#XD;Sloi017@hT,FALSE,00:00:00,FALSE,,,0.0,922306,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (AM008),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|GT5|pass|False,,,1500000
+TRUE,MSS_A7_GCLPRO_FIX_1CR_POS,ZPRO1,GCLBroking,b27656a927afc50241f398;0c382b6cc4511e75051809,Meda200#5s;Btui774#YP,FALSE,00:00:00,FALSE,,,0.0,179997,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (ZPRO1),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,115.247.146.146|9002|||False,,,100000
+TRUE,MSS_A7_PS_FULL_POS,ZZJ17223,JAINAMSRED,4b49c0dda9671dd70f4510;85c2ebf1e2454560c54120,Lbjo367#B#;Fhqf326@ys,FALSE,00:00:00,FALSE,,,0.0,244692,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (ZZJ17223),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,colo.srellp.com|9010|||False,,,400000

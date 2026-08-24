@@ -71,12 +71,14 @@ def check_arithmetic() -> None:
         }
         check(alias, got, {Decimal(want)})
 
-    print("\n-- algo 8: the size splits across the two expiries --")
+    print("\n-- algo 8: half on 1DTE, the whole size on 0DTE --")
     for alias, one, zero in [
-        ("MSR_BANSAL_5C", 200_000, 300_000),
-        ("MSR_BANSAL_4C", 200_000, 200_000),
-        ("MSR_BANSAL_15C", 700_000, 800_000),
-        ("MSR_X_3C", 100_000, 200_000),
+        ("MSR_BANSAL_8C", 400_000, 800_000),
+        ("MSR_BANSAL_7C", 300_000, 700_000),
+        ("MSR_BANSAL_5C", 200_000, 500_000),
+        ("MSR_BANSAL_4C", 200_000, 400_000),
+        ("MSR_BANSAL_15C", 700_000, 1_500_000),
+        ("MSR_X_3C", 100_000, 300_000),
     ]:
         check(f"{alias} 1DTE", alias_rule.allocation(alias, "8", "1DTE"), Decimal(one))
         check(f"{alias} 0DTE", alias_rule.allocation(alias, "8", "0DTE"), Decimal(zero))
@@ -89,12 +91,15 @@ def check_arithmetic() -> None:
     # floor(1/2) is 0; writing that would disable a live account.
     check("1C on algo 8 1DTE", alias_rule.allocation("MSR_X_1C", "8", "1DTE"), None)
     check("1C on algo 8 0DTE", alias_rule.allocation("MSR_X_1C", "8", "0DTE"), Decimal(100_000))
+    check("algo 8 0DTE equals the full size, like 19/27",
+          alias_rule.allocation("MSR_X_9C", "8", "0DTE"),
+          alias_rule.allocation("MSR_X_9C", "19", "0DTE"))
 
     print("\n-- shapes the sheet actually contains --")
     check("lowercase", alias_rule.allocation("msr_x_3c", "19", "0DTE"), Decimal(300_000))
     check("trailing space", alias_rule.allocation("MSR_X_3C ", "19", "0DTE"), Decimal(300_000))
     check("algo as int", alias_rule.allocation("MSR_X_2C", 19, "0DTE"), Decimal(200_000))
-    check("algo as float", alias_rule.allocation("MSR_X_2C", 8.0, "0DTE"), Decimal(100_000))
+    check("algo as float", alias_rule.allocation("MSR_X_2C", 8.0, "0DTE"), Decimal(200_000))
 
 
 # Accounts covering every branch: priced, split, MSJ, no-suffix, other algos.
@@ -133,7 +138,8 @@ def seed(on_date: dt.date) -> None:
         "CREATE TABLE running_users (`userId` TEXT, `capital` REAL, `imported_at` TEXT)"))
     db.session.execute(text("CREATE TABLE jainam (`UserID` TEXT, `ALLOCATION` REAL)"))
     db.session.execute(text(
-        "CREATE TABLE usersetting (`User ID` TEXT, `Remarks` TEXT, `server` TEXT)"))
+        "CREATE TABLE usersetting (`User ID` TEXT, `Remarks` TEXT, "
+        "`server` TEXT, `User Alias` TEXT)"))
 
     # The same accounts on the previous day too: 0DTE refuses to run without it.
     for uid, alias, algo, sub, alloc, capital in ACCOUNTS:
@@ -147,7 +153,7 @@ def seed(on_date: dt.date) -> None:
         db.session.execute(text(
             "INSERT INTO running_users VALUES (:u,:c,'2026-08-21 09:00:00')"),
             dict(u=uid, c=capital))
-        db.session.execute(text("INSERT INTO usersetting VALUES (:u,'','vs1')"),
+        db.session.execute(text("INSERT INTO usersetting VALUES (:u,'','vs1',:u)"),
                            dict(u=uid))
 
     for uid, alloc in JAINAM:
@@ -170,8 +176,8 @@ def check_end_to_end() -> None:
                 "A19FULL": ("Alias size", "Mismatch", 200_000.0),
                 "A19OK": ("Alias size", "Match", 500_000.0),
                 "A27FULL": ("Alias size", "Mismatch", 1_000_000.0),
-                "A8ODD": ("Alias size", "Mismatch", 300_000.0),
-                "A8EVEN": ("Alias size", "Match", 200_000.0),
+                "A8ODD": ("Alias size", "Match", 500_000.0),
+                "A8EVEN": ("Alias size", "Mismatch", 400_000.0),
             },
             "1DTE": {
                 "A19FULL": ("Alias size", "Mismatch", 200_000.0),

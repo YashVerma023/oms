@@ -90,6 +90,15 @@
     </form>
   </div>
 
+  {# Rules are grouped and closed by default: four tables at once is a wall.
+     <details> gives the open/close behaviour natively, no JS. #}
+  <details class="rules-group" {% if error_subcategories or error_brokers %}open{% endif %}>
+    <summary>
+      <svg class="group-caret" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      <span>Allocation rules</span>
+      <span class="group-hint">Category and broker rules for the allocation check</span>
+    </summary>
+
   {# ---------------- SubCategory rules ---------------- #}
   <form class="edit-form rules-block" method="post"
         action="{{ url_for('admin.save_subcategories') }}">
@@ -112,7 +121,7 @@
 
     <div class="panel">
       <div class="table-scroll" style="max-height:340px">
-        <table class="grid rules-table">
+        <table class="grid rules-table centred-table">
           <thead>
             <tr class="head-row">
               <th>SubCategory</th>
@@ -174,7 +183,7 @@
 
     <div class="panel">
       <div class="table-scroll" style="max-height:260px">
-        <table class="grid rules-table">
+        <table class="grid rules-table centred-table">
           <thead>
             <tr class="head-row">
               <th>Broker</th>
@@ -211,6 +220,189 @@
       <button class="btn-primary" type="submit">Save broker rules</button>
     </div>
   </form>
+
+  </details>
+
+  <details class="rules-group" {% if error_maxloss or error_submaxloss or error_algomaxloss %}open{% endif %}>
+    <summary>
+      <svg class="group-caret" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      <span>Max loss rules</span>
+      <span class="group-hint">Per algo and DTE mode, plus the SubCategory overrides</span>
+    </summary>
+
+  {# ---------------- Max loss rules ---------------- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_maxloss_rules') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Max loss rules</h2>
+        <p class="subtitle">
+          Max loss = <b>allocation &times; the multiplier</b> for the account's
+          algo in the day's DTE mode. An allocation of 10,000 at 2 gives a max
+          loss of 20,000. These apply to accounts <b>running from today</b>;
+          accounts that already ran take their max loss from the uploaded
+          Max Loss sheet instead. Leave a cell empty where an algo has no rule
+          &mdash; those accounts are left alone rather than set to zero.
+        </p>
+      </div>
+    </div>
+
+    {% if error_maxloss %}
+      <div class="flash flash-error">{{ error_maxloss }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="table-scroll" style="max-height:260px">
+        <table class="grid rules-table centred-table">
+          <thead>
+            <tr class="head-row">
+              <th>Algo</th>
+              {% for mode in modes %}<th class="num">{{ mode }}</th>{% endfor %}
+              <th class="col-select"></th>
+            </tr>
+          </thead>
+          <tbody id="maxlossBody">
+            {% for row in maxloss_rows %}
+              <tr>
+                <td><input name="algo" value="{{ row.algo }}" autocomplete="off"></td>
+                {% for mode in modes %}
+                  <td class="num">
+                    <input name="{{ mode }}" type="number" step="any" min="0"
+                           value="{{ row[mode] if row[mode] is not none else '' }}">
+                  </td>
+                {% endfor %}
+                <td class="col-select">
+                  <button class="row-drop" type="button" title="Remove">&times;</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" type="button" data-add="maxlossBody">Add algo</button>
+      <button class="btn-primary" type="submit">Save max loss rules</button>
+    </div>
+  </form>
+
+  {# ---------------- Per-algo max loss overrides ---------------- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_algo_maxloss') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Max loss by algo</h2>
+        <p class="subtitle">
+          The <b>highest</b> priority: an algo listed here ignores the
+          SubCategory table below and the base table above. Two multipliers per
+          mode &mdash; <b>MS</b> writes All Users, <b>St</b> writes Usersetting.
+          Type <span class="mono">sheet</span> in both cells of a mode to take
+          that day's uploaded Max Loss sheet instead. Leave a pair empty for no
+          override.
+        </p>
+      </div>
+    </div>
+
+    {% if error_algomaxloss %}
+      <div class="flash flash-error">{{ error_algomaxloss }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="table-scroll" style="max-height:260px">
+        <table class="grid rules-table centred-table">
+          <thead>
+            <tr class="head-row">
+              <th>Algo</th>
+              {% for mode in modes %}
+                <th class="num">{{ mode }} MS</th>
+                <th class="num">{{ mode }} St</th>
+              {% endfor %}
+              <th class="col-select"></th>
+            </tr>
+          </thead>
+          <tbody id="algoMaxlossBody">
+            {% for row in algomaxloss_rows %}
+              <tr>
+                <td><input name="algo" value="{{ row.algo }}" autocomplete="off"></td>
+                {% for mode in modes %}
+                  <td class="num"><input name="{{ mode }}_mstech"
+                                         value="{{ row[mode ~ '_mstech'] }}"></td>
+                  <td class="num"><input name="{{ mode }}_stoxxo"
+                                         value="{{ row[mode ~ '_stoxxo'] }}"></td>
+                {% endfor %}
+                <td class="col-select">
+                  <button class="row-drop" type="button" title="Remove">&times;</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" type="button" data-add="algoMaxlossBody">Add algo</button>
+      <button class="btn-primary" type="submit">Save algo rules</button>
+    </div>
+  </form>
+
+  {# ---------------- SubCategory max loss overrides ---------------- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_subcategory_maxloss') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Max loss by SubCategory</h2>
+        <p class="subtitle">
+          These <b>outrank</b> the per-algo table above and the uploaded sheet:
+          an account in one of these SubCategories is set by what it is, not by
+          its algo or how it traded. Both columns are multipliers of the
+          allocation, and <b>0 is allowed</b> here &mdash; it is how these
+          accounts are told to carry no Stoxxo limit.
+        </p>
+      </div>
+    </div>
+
+    {% if error_submaxloss %}
+      <div class="flash flash-error">{{ error_submaxloss }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="table-scroll" style="max-height:260px">
+        <table class="grid rules-table centred-table">
+          <thead>
+            <tr class="head-row">
+              <th>SubCategory</th>
+              <th class="num">All Users (MStech)</th>
+              <th class="num">Usersetting (Stoxxo)</th>
+              <th class="col-select"></th>
+            </tr>
+          </thead>
+          <tbody id="subMaxlossBody">
+            {% for row in submaxloss_rows %}
+              <tr>
+                <td><input name="name" value="{{ row.name }}" autocomplete="off"></td>
+                <td class="num"><input name="mstech" type="number" step="any" min="0"
+                                       value="{{ row.mstech }}"></td>
+                <td class="num"><input name="stoxxo" type="number" step="any" min="0"
+                                       value="{{ row.stoxxo }}"></td>
+                <td class="col-select">
+                  <button class="row-drop" type="button" title="Remove">&times;</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" type="button" data-add="subMaxlossBody">Add SubCategory</button>
+      <button class="btn-primary" type="submit">Save SubCategory rules</button>
+    </div>
+  </form>
+
+  </details>
 
   <p class="upload-note">
     Rounding is chosen per run on the <a href="{{ url_for('admin.setup') }}">Setup</a> tab.

@@ -29,6 +29,7 @@ import pandas as pd
 from sqlalchemy import bindparam, text
 
 from core import alias_rule
+from core import rules as business_rules
 from core import allocation_check as ac
 from database.db import db
 
@@ -413,6 +414,7 @@ def apply_changes(
     on_date: dt.date,
     updates: list[dict[str, Any]],
     servers: list[str] | None = None,
+    commit: bool = True,
 ) -> dict[str, int]:
     """Write expected allocations back.
 
@@ -421,6 +423,11 @@ def apply_changes(
         usersetting.Remarks   for that user  = the same expected value
 
     Both writes happen in one transaction: a failure leaves neither applied.
+
+    Args:
+        commit: pass False to leave the transaction open, so a caller can add
+            more writes - the Setup tab applies allocations and max losses
+            together, and half of that landing would be worse than none.
 
     Returns:
         Counts of rows updated in each table.
@@ -452,7 +459,10 @@ def apply_changes(
         # exist on several servers; the figure belongs to the account, so every
         # copy of it gets the same value - except for an operator, who may only
         # write on the servers assigned to them.
-        remarks_sql = "UPDATE `usersetting` SET `Remarks` = :value WHERE `User ID` = :pk"
+        remarks_sql = (
+            "UPDATE `usersetting` SET `Remarks` = :value WHERE `User ID` = :pk"
+            + business_rules.EXCLUDE_FEED_SQL
+        )
         remarks_params = [
             {"pk": r["pk"], "value": _plain(r["value"])} for r in rows
         ]
@@ -467,7 +477,8 @@ def apply_changes(
 
         remarks = db.session.execute(statement, remarks_params).rowcount
 
-        db.session.commit()
+        if commit:
+            db.session.commit()
     except Exception:
         db.session.rollback()
         logger.exception("Applying allocation changes for %s failed", on_date)

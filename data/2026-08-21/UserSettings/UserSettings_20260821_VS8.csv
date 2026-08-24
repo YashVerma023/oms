@@ -1,0 +1,9 @@
+﻿# Please fill all values carefully. ANY VALUE WHICH IS NOT REQUIRED CAN BE LEFT BLANK.
+# For Boolean, True / False OR Yes / No can be used.
+# For NRML SqOff, 0 = None, 1 = All, 2 = Today
+# For Time, enter like 15:15:00.
+# Password & PIN: These are only required if you have selected for Auto Login. Auto login internally fills user details in browser for easy login. It is totally optional feature.
+# Broker: Zerodha, AliceBlue etc.
+Enabled,User Alias,User ID,Broker,API Key,API Secret,Historical API,SquareOff Time,Auto Login,Password,Pin,Max Profit,Max Loss,Qty on MaxLoss PerTrade,Max Loss Per Trade,Max Open Trades,Telegram ID(s),Email,Qty Multiplier,Trading Authorization Req,SqOff NRML Orders,Qty By Exposure,API User Details,SqOff CNC Orders,ProfitLocking,MaxLossWaitSec,TwoFA,LIMIT Only,LIMIT Type,LIMIT Spread,MaxModifications,LimitModificationGapTime,API Version,Proxy,OrderPerSecond,MaxChaseLimit,Remarks
+TRUE,MSS_A1_RM_PRSNL_POS,AM005,AlphaMatrix,ef36799c093a3b41041802;4d6332ddf9aaa167ec8644,Bnok086#3A;Anqy628#$a,FALSE,00:00:00,FALSE,,,0.0,922421,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (AM005),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|GT5|pass|False,,,1500000
+TRUE,FEED,ZG0636,Zerodha,4gb3winb29zs2ikd,oymc2v8mnr7gslnhblb915jqg1g9phdw,FALSE,00:00:00,TRUE,smart123Z,AAYQAZDUQQOJJJSPWLXKB6PNX7YUJ447,0.0,0,FALSE,0.0,0,,,1,FALSE,2,0,Vivek Thebaria (ZG0636),FALSE,0~0~0~0,0,,FALSE,BidAsk,0,0,0,,,,,0

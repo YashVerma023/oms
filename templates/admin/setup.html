@@ -8,7 +8,8 @@
       <h1>Setup &mdash; Allocation Check</h1>
       <p class="subtitle">
         Works out what each account's allocation should be from its running
-        capital and the rules, then writes it back. Rules live in
+        capital and the rules, works out each account's max loss from the
+        same numbers, then writes both back. Rules live in
         <a href="{{ url_for('admin.controls') }}">Admin Controls</a>.
       </p>
     </div>
@@ -57,6 +58,20 @@
       </div>
     </div>
 
+    {# The day comes from the workbook's own Date column, so none is asked. #}
+    <form class="maxloss-upload" method="post" enctype="multipart/form-data"
+          action="{{ url_for('admin.upload_maxloss') }}">
+      <label class="field">
+        <span class="field-label">Max Loss workbook</span>
+        <input class="file-input" type="file" name="file" accept=".xlsx,.xlsm" required>
+      </label>
+      <button class="tool" type="submit">Upload Max Loss sheet</button>
+      <p class="upload-note">
+        Reads the <span class="mono">Max Loss Calculation</span> sheet and
+        replaces that date's rows. Shown under All Users &rarr; Positional.
+      </p>
+    </form>
+
     <div class="edit-actions">
       <button class="tool" id="btnRun" type="button">Run check</button>
       <button class="btn-primary" id="btnApply" type="button" disabled>
@@ -80,9 +95,21 @@
     <span class="stat-pill warn" id="pillMismatch">0 to change</span>
     <span class="stat-pill ok" id="pillMatch">0 already correct</span>
     <span class="stat-pill" id="pillReconcile"></span>
+    <span class="stat-pill warn" id="pillMaxloss">0 max loss to change</span>
+    <span class="stat-pill" id="pillMaxlossSkipped">0 left alone</span>
   </div>
 
-  <div class="panel" id="resultPanel" hidden>
+  <div id="resultPanel" hidden>
+    <nav class="subtabs setup-tabs">
+      <button class="subtab active" type="button" data-tab="allocation">
+        Allocation <span class="chip" id="tabAllocCount">0</span>
+      </button>
+      <button class="subtab" type="button" data-tab="maxloss">
+        Max loss <span class="chip" id="tabMaxlossCount">0</span>
+      </button>
+    </nav>
+
+  <div class="panel" id="tabAllocation" data-tab-panel="allocation">
     <div class="toolbar" style="margin:14px">
       <input class="search" id="setupSearch" type="search"
              placeholder="Search user, alias, rule..." autocomplete="off">
@@ -175,6 +202,101 @@
         <tbody id="setupBody"></tbody>
       </table>
     </div>
+  </div>
+
+  {# Max loss. Values are worked out from the allocations the run above
+     proposes, so both halves of a run agree. #}
+  <div class="panel" id="tabMaxloss" data-tab-panel="maxloss" hidden>
+    <div class="toolbar" style="margin:14px">
+      <input class="search" id="maxlossSearch" type="search"
+             placeholder="Search user, alias, source..." autocomplete="off">
+      <button class="tool" id="btnMaxlossSelectAll" type="button">
+        Select all changes
+      </button>
+      <button class="tool" id="btnMaxlossSelectNone" type="button">
+        Clear selection
+      </button>
+    </div>
+
+    <div class="table-scroll">
+      <table class="grid">
+        <thead>
+          <tr class="head-row">
+            <th class="col-select"></th>
+            <th>userId</th>
+            <th>alias</th>
+            <th>server</th>
+            <th>algo</th>
+            <th>operator</th>
+            <th>sub category</th>
+            <th>rule</th>
+            <th class="num">allocation</th>
+            {# US = usersetting (Stoxxo), AU = all users (MStech). #}
+            <th class="num">max loss US</th>
+            <th class="num">max loss AU</th>
+            <th>status</th>
+            <th>remark</th>
+          </tr>
+          <tr class="filter-row">
+            <th class="col-select"></th>
+            <th></th>
+            <th></th>
+            <th>
+              <div class="choice" data-col="server">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="algo">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="operator_name">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="subcategory">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th>
+              <div class="choice" data-col="source">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th></th><th></th><th></th>
+            <th>
+              <div class="choice" data-col="status">
+                <button class="choice-btn" type="button">
+                  <span class="choice-label">Select...</span>
+                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                </button>
+              </div>
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="maxlossBody"></tbody>
+      </table>
+    </div>
+  </div>
   </div>
 {% endblock %}
 

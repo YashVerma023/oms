@@ -1,0 +1,14 @@
+﻿# Please fill all values carefully. ANY VALUE WHICH IS NOT REQUIRED CAN BE LEFT BLANK.
+# For Boolean, True / False OR Yes / No can be used.
+# For NRML SqOff, 0 = None, 1 = All, 2 = Today
+# For Time, enter like 15:15:00.
+# Password & PIN: These are only required if you have selected for Auto Login. Auto login internally fills user details in browser for easy login. It is totally optional feature.
+# Broker: Zerodha, AliceBlue etc.
+Enabled,User Alias,User ID,Broker,API Key,API Secret,Historical API,SquareOff Time,Auto Login,Password,Pin,Max Profit,Max Loss,Qty on MaxLoss PerTrade,Max Loss Per Trade,Max Open Trades,Telegram ID(s),Email,Qty Multiplier,Trading Authorization Req,SqOff NRML Orders,Qty By Exposure,API User Details,SqOff CNC Orders,ProfitLocking,MaxLossWaitSec,TwoFA,LIMIT Only,LIMIT Type,LIMIT Spread,MaxModifications,LimitModificationGapTime,API Version,Proxy,OrderPerSecond,MaxChaseLimit,Remarks
+TRUE,MSG_KONATHALA_RAMYA_POS,18400763,IIFL_CDC,F560HAP01,DCLIENT,FALSE,00:00:00,FALSE,,,0.0,249986,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (18400763),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|F560HAP01|pass|False,,,125000
+TRUE,CCV_VAIBHAVT_POS,55910733,IIFL_CDC,F560HAP01,DCLIENT,FALSE,00:00:00,FALSE,,,0.0,249986,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (55910733),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|F560HAP01|pass|False,,,125000
+TRUE,CCV_VIVEK_THEBARIA_FIX_1_25CR_POS,92176368,IIFL_CDC,F560HAP01,DCLIENT,FALSE,00:00:00,FALSE,,,0.0,-4,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (92176368),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|F560HAP01|pass|False,,,125000
+TRUE,MSV_AMITBANSAL_POS,AMITHUFB,IIFL_CDC,F560HAP01,DCLIENT,FALSE,00:00:00,FALSE,,,0.0,250018,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (AMITHUFB),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|F560HAP01|pass|False,,,125000
+TRUE,MSV_AMIT_POS,MAMIT782,IIFL_CDC,FY261AP09,DCLIENT,FALSE,00:00:00,FALSE,,,0.0,250028,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (MAMIT782),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.24|11002|FY261AP09|pass,,,125000
+TRUE,MSV_MILIND_POS,MMILIND7,IIFL_CDC,FY261AP09,DCLIENT,FALSE,00:00:00,FALSE,,,0.0,300047,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (MMILIND7),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.24|11002|FY261AP09|pass,,,150000
+TRUE,MSV_NIRAJDESAI_POS,SPAN0050,IIFL_CDC,FY261AP09,DCLIENT,FALSE,00:00:00,FALSE,,,0.0,250033,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (SPAN0050),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.24|11002|FY261AP09|pass,,,125000

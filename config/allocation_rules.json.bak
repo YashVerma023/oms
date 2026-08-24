@@ -45,6 +45,23 @@
     "thu": "0DTE",
     "fri": "4DTE"
   },
+  "maxloss_rules": {
+    "0DTE": {
+      "1": 1.0,
+      "7": 0.8,
+      "15": 1.0
+    },
+    "1DTE": {
+      "1": 2.0,
+      "7": 1.8,
+      "15": 2.0
+    },
+    "4DTE": {
+      "1": 2.0,
+      "7": 1.8,
+      "15": 2.0
+    }
+  },
   "previous_day": {
     "required": [
       "0DTE"
@@ -201,5 +218,65 @@
     "enabled": true,
     "sl_column": "sl",
     "max_loss_multiplier": 30
+  },
+  "today_mode": {
+    "mode": "0DTE",
+    "date": "2026-08-22",
+    "by": "superadmin@gmail.com"
+  },
+  "maxloss_subcategory": {
+    "CC": {
+      "mstech": 30.0,
+      "stoxxo": 0.0
+    },
+    "CCG": {
+      "mstech": 30.0,
+      "stoxxo": 0.0
+    },
+    "PGB": {
+      "mstech": 30.0,
+      "stoxxo": 0.0
+    },
+    "PVT": {
+      "mstech": 30.0,
+      "stoxxo": 0.0
+    }
+  },
+  "maxloss_algo": {
+    "8": {
+      "0DTE": "sheet",
+      "1DTE": {
+        "mstech": 1.4,
+        "stoxxo": 1.4
+      }
+    },
+    "19": {
+      "0DTE": {
+        "mstech": 30.0,
+        "stoxxo": 10.0
+      },
+      "1DTE": {
+        "mstech": 30.0,
+        "stoxxo": 10.0
+      },
+      "4DTE": {
+        "mstech": 30.0,
+        "stoxxo": 10.0
+      }
+    },
+    "27": {
+      "0DTE": {
+        "mstech": 3.0,
+        "stoxxo": 3.0
+      },
+      "1DTE": {
+        "mstech": 30.0,
+        "stoxxo": 3.0
+      },
+      "4DTE": {
+        "mstech": 30.0,
+        "stoxxo": 3.0
+      }
+    }
   }
 }

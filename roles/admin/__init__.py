@@ -17,9 +17,12 @@ from auth import roles_required
 from core import dashboard as pivot
 from core import all_users, crud, derive, personal, rules, rules_io, usersetting_export
 from core import data_ops as data_ops_core
+from core import maxloss
+from database.db import db
 from database import schema
 from core.importer import IMPORT_SPECS, import_sheet
 from core.tables import TABLE_PAGES, as_of, default_date, fetch_rows, get_columns
+from core.tables import latest_date  # noqa: E501
 from core.tables import date_column as table_date_column
 from core.tables import nav_pages, subtabs as table_subtabs
 from core.tables import delete_rows as delete_table_rows
@@ -168,10 +171,14 @@ def table_data(page_key: str):
     if access.locked_to_today(page_key):
         on_date = dt.date.today().isoformat()
 
+    rows = fetch_rows(page_key, on_date, access.operator_servers())
     return jsonify(
         columns=get_columns(page_key),
-        rows=fetch_rows(page_key, on_date, access.operator_servers()),
+        rows=rows,
         date=on_date or default_date(page_key),
+        # Only worth the query when the day is empty: it tells the user whether
+        # an upload landed on a different date or never landed at all.
+        latest=None if rows else latest_date(page_key),
     )
 
 
@@ -267,11 +274,26 @@ def _controls_page(**overrides):
         "schedule": rules_io.schedule_rows(),
         "fallback_mode": rules_io.FALLBACK_MODE,
         "dte_rules": rules_io.dte_summary(),
+        "maxloss_rows": _maxloss_rows(),
+        "submaxloss_rows": rules_io.subcategory_maxloss_rows(),
+        "algomaxloss_rows": rules_io.algo_maxloss_rows(),
         "error_subcategories": None,
         "error_brokers": None,
+        "error_maxloss": None,
+        "error_submaxloss": None,
+        "error_algomaxloss": None,
     }
     context.update(overrides)
     return render_template("admin/controls.html", **context)
+
+
+def _maxloss_rows() -> list[dict]:
+    """One row per algo, one column per DTE mode, for the editor."""
+    rules = rules_io.maxloss_rules()
+    return [
+        {"algo": algo, **{mode: rules.get(mode, {}).get(algo) for mode in rules_io.modes()}}
+        for algo in rules_io.maxloss_algos()
+    ]
 
 
 def _rows_from_form(fields: tuple[str, ...]) -> list[dict]:
@@ -502,6 +524,62 @@ def download_usersetting():
     return response
 
 
+@bp.route("/controls/maxloss", methods=["POST"])
+@roles_required("admin", "superadmin")
+def save_maxloss_rules():
+    """Replace the max-loss multipliers from the Admin Controls table."""
+    rows = _rows_from_form(("algo", *rules_io.modes()))
+    try:
+        rules_io.save_maxloss_rules(rows)
+        flash("Max loss rules saved.", "success")
+        return redirect(url_for("admin.controls"))
+    except ValueError as exc:
+        # Keep what was typed on screen rather than discarding the edit.
+        return _controls_page(maxloss_rows=rows, error_maxloss=str(exc))
+    except Exception:
+        logger.exception("Saving the max loss rules failed")
+        flash("Could not save the max loss rules - see logs/omp.log.", "error")
+        return redirect(url_for("admin.controls"))
+
+
+@bp.route("/controls/algo-maxloss", methods=["POST"])
+@roles_required("admin", "superadmin")
+def save_algo_maxloss():
+    """Replace the per-algo max loss overrides."""
+    fields = ["algo"]
+    for mode in rules_io.modes():
+        fields += [f"{mode}_mstech", f"{mode}_stoxxo"]
+
+    rows = _rows_from_form(tuple(fields))
+    try:
+        rules_io.save_algo_maxloss(rows)
+        flash("Algo max loss rules saved.", "success")
+        return redirect(url_for("admin.controls"))
+    except ValueError as exc:
+        return _controls_page(algomaxloss_rows=rows, error_algomaxloss=str(exc))
+    except Exception:
+        logger.exception("Saving the algo max loss rules failed")
+        flash("Could not save them - see logs/omp.log.", "error")
+        return redirect(url_for("admin.controls"))
+
+
+@bp.route("/controls/subcategory-maxloss", methods=["POST"])
+@roles_required("admin", "superadmin")
+def save_subcategory_maxloss():
+    """Replace the SubCategory max loss overrides."""
+    rows = _rows_from_form(("name", "mstech", "stoxxo"))
+    try:
+        rules_io.save_subcategory_maxloss(rows)
+        flash("SubCategory max loss rules saved.", "success")
+        return redirect(url_for("admin.controls"))
+    except ValueError as exc:
+        return _controls_page(submaxloss_rows=rows, error_submaxloss=str(exc))
+    except Exception:
+        logger.exception("Saving the SubCategory max loss rules failed")
+        flash("Could not save them - see logs/omp.log.", "error")
+        return redirect(url_for("admin.controls"))
+
+
 @bp.route("/controls/today-mode", methods=["POST"])
 @roles_required("admin", "superadmin")
 def save_today_mode():
@@ -543,6 +621,40 @@ def setup():
     )
 
 
+@bp.route("/setup/maxloss", methods=["POST"])
+@roles_required(*ALLOWED)
+def upload_maxloss():
+    """Load the Max Loss Calculation sheet from the Setup tab.
+
+    The workbook carries its own Date column, so the day comes from the file
+    rather than being chosen here, and loading it replaces only that day.
+    """
+    spec = IMPORT_SPECS["maxloss"]
+    upload = request.files.get("file")
+
+    if not upload or not upload.filename:
+        flash("Choose the Max Loss workbook to upload.", "error")
+    elif not upload.filename.lower().endswith(spec.accept):
+        flash(f"Max Loss expects {' or '.join(spec.accept)}.", "error")
+    else:
+        try:
+            report = import_sheet("maxloss", [(upload.stream, upload.filename)])
+            flash(
+                f"Max Loss: {report.loaded} row(s) loaded"
+                + (f", {report.skipped} skipped" if report.skipped else "")
+                + ". Shown under All Users -> Positional.",
+                "success",
+            )
+        except ValueError as exc:
+            logger.warning("Max Loss upload rejected: %s", exc)
+            flash(str(exc), "error")
+        except Exception:
+            logger.exception("Max Loss upload failed")
+            flash("Upload failed. Nothing was changed - see logs/omp.log.", "error")
+
+    return redirect(url_for("admin.setup"))
+
+
 @bp.route("/setup/run", methods=["POST"])
 @roles_required(*ALLOWED)
 def setup_run():
@@ -561,37 +673,78 @@ def setup_run():
         except ValueError:
             return jsonify(error="The previous-day date is not a valid date."), 400
 
+    mode = payload.get("mode", "1DTE")
+    servers = access.operator_servers()
+
     try:
-        return jsonify(_setup_check().run_check(
+        result = _setup_check().run_check(
             on_date,
-            payload.get("mode", "1DTE"),
+            mode,
             previous_date,
             rounding_basis=payload.get("rounding"),
-            servers=access.operator_servers(),
-        ))
+            servers=servers,
+        )
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Allocation check failed")
         return jsonify(error="Check failed - see logs/omp.log."), 500
 
+    # Max loss is worked out from the allocations this run is about to write,
+    # not the stored ones, so the two halves of a run cannot disagree.
+    proposed = {
+        row["userid"]: row["expected"]
+        for row in result.get("rows", [])
+        if row.get("apply") and row.get("expected") is not None
+    }
+    try:
+        result["maxloss"] = maxloss.plan(
+            on_date, mode,
+            has_previous=previous_date is not None,
+            servers=servers,
+            proposed=proposed,
+        )
+    except maxloss.MaxLossError as exc:
+        result["maxloss"] = {"error": str(exc), "rows": []}
+    except Exception:
+        logger.exception("Max loss plan failed")
+        result["maxloss"] = {
+            "error": "Max loss could not be worked out - see logs/omp.log.",
+            "rows": [],
+        }
+
+    return jsonify(result)
+
 
 @bp.route("/setup/apply", methods=["POST"])
 @roles_required(*ALLOWED)
 def setup_apply():
-    """Write the selected expected allocations to all_users and usersetting."""
+    """Write the selected allocations and max losses.
+
+    All four writes - all_users.allocation, usersetting.Remarks,
+    all_users.max_loss, usersetting.`Max Loss` - go in one transaction, so a
+    failure half way leaves the day untouched rather than half set up.
+    """
     payload = request.get_json(silent=True) or {}
     try:
         on_date = dt.date.fromisoformat((payload.get("date") or "").strip())
     except ValueError:
         return jsonify(error="Missing the date to write against."), 400
 
+    servers = access.operator_servers()
+    allocations = payload.get("updates") or []
+    losses = payload.get("maxloss") or []
+
     try:
-        return jsonify(_setup_check().apply_changes(
-            on_date, payload.get("updates") or [], servers=access.operator_servers()
-        ))
+        result = _setup_check().apply_changes(
+            on_date, allocations, servers=servers, commit=False
+        )
+        result.update(maxloss.apply(on_date, losses, servers=servers, commit=False))
+        db.session.commit()
+        return jsonify(result)
     except Exception:
-        logger.exception("Applying the allocation check failed")
+        db.session.rollback()
+        logger.exception("Applying the setup run failed")
         return jsonify(error="Apply failed - see logs/omp.log."), 500
 
 

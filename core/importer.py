@@ -143,6 +143,19 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         # The sheet ends with a Total line that is not an account.
         exclude_values={"UserID": ("total", "grand total", "grandtotal")},
     ),
+    "maxloss": ImportSpec(
+        table="maxloss",
+        title="Max Loss",
+        kind="xlsx",
+        # One workbook holds one day, so loading it replaces that day and
+        # leaves every other day alone.
+        mode="replace_scope",
+        scope_column="Date",
+        pk=("Date", "User ID"),
+        header_row=1,
+        sheet="Max Loss Calculation",
+        accept=(".xlsx", ".xlsm"),
+    ),
     "server-config": ImportSpec(
         table="server_config",
         title="Server Config",

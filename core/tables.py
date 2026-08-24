@@ -44,7 +44,6 @@ PENDING: dict[str, dict[str, Any]] = {
         "pending": True,
     }
     for key, table, title, label in (
-        ("positional", "positional", "Positional", "Positional"),
         ("exceptions", "exceptions", "Exceptions", "Exceptions"),
     )
 }
@@ -70,6 +69,23 @@ BUILT: dict[str, dict[str, Any]] = {
         "group": "all-users",
         "hidden": ("id", "created_at", "updated_at"),
         "where": None,
+    },
+    # The uploaded Max Loss Calculation sheet, one day at a time.
+    "positional": {
+        "table": "maxloss",
+        "title": "Positional",
+        "label": "Positional",
+        "group": "all-users",
+        "hidden": ("created_at",),
+        "order_by": "`Server`, `User ID`",
+        "date_column": "Date",
+        "where": None,
+        "choice_filters": ("Server", "Algo"),
+        # Jainam-style: the sheet has no operator, so ownership follows the
+        # account's server in all_users.
+        "operator_scope": (
+            "`User ID` IN (SELECT `userId` FROM `all_users` WHERE `server` IN :servers)"
+        ),
     },
     "personal": {
         "table": "personal",
@@ -327,6 +343,29 @@ def _reordered(columns: list[dict], page: dict[str, Any]) -> list[dict]:
     order = {name: i for i, name in enumerate(spec["columns"])}
     moving.sort(key=lambda c: order[c["name"]])
     return rest[: anchor + 1] + moving + rest[anchor + 1 :]
+
+
+def latest_date(page_key: str) -> str | None:
+    """The newest date the page's table holds, or None.
+
+    A dated page always opens on today. When a sheet carries its own date -
+    Max Loss, for one - today is usually empty and the rows are sitting under
+    the day the workbook is for, which looks exactly like a failed upload. The
+    empty view uses this to say which day does have data.
+    """
+    column = date_column(page_key)
+    if not column:
+        return None
+
+    page = get_page(page_key)
+    value = db.session.execute(
+        text(f"SELECT MAX(`{column}`) FROM `{page['table']}`")
+    ).scalar()
+    if value is None:
+        return None
+    if isinstance(value, dt.datetime):
+        value = value.date()
+    return value.isoformat() if isinstance(value, dt.date) else str(value)
 
 
 def as_of(page_key: str) -> str | None:

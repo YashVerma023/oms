@@ -1,0 +1,14 @@
+﻿# Please fill all values carefully. ANY VALUE WHICH IS NOT REQUIRED CAN BE LEFT BLANK.
+# For Boolean, True / False OR Yes / No can be used.
+# For NRML SqOff, 0 = None, 1 = All, 2 = Today
+# For Time, enter like 15:15:00.
+# Password & PIN: These are only required if you have selected for Auto Login. Auto login internally fills user details in browser for easy login. It is totally optional feature.
+# Broker: Zerodha, AliceBlue etc.
+Enabled,User Alias,User ID,Broker,API Key,API Secret,Historical API,SquareOff Time,Auto Login,Password,Pin,Max Profit,Max Loss,Qty on MaxLoss PerTrade,Max Loss Per Trade,Max Open Trades,Telegram ID(s),Email,Qty Multiplier,Trading Authorization Req,SqOff NRML Orders,Qty By Exposure,API User Details,SqOff CNC Orders,ProfitLocking,MaxLossWaitSec,TwoFA,LIMIT Only,LIMIT Type,LIMIT Spread,MaxModifications,LimitModificationGapTime,API Version,Proxy,OrderPerSecond,MaxChaseLimit,Remarks
+TRUE,MSS_A15_RM_PRSNL_POS,AM006,AlphaMatrix,a629eb291f85942b012888;064513099dbb754fc91382,Pqsj400$@k;Pnmy678$mf,FALSE,0.00.00,FALSE,,,0.0,1229596,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (AM006),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|GT5|pass|False,,,2000000
+TRUE,MSN_ANUPAM_KANODIA3_POS,ANITAKA9,IIFL_CDC,FY261AP07,DCLIENT,FALSE,0.00.00,FALSE,,,0.0,351588,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (ANITAKA9),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.17|11002|FY261AP07|pass|False,,,175000
+TRUE,CC_BHADADAR_FIX_1CR_0_SL_POS,BHADADAR,IIFL_CDC,F560HAP01,DCLIENT,FALSE,0.00.00,FALSE,,,0.0,1572,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (BHADADAR),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.42|11002|F560HAP01|pass|False,,,100000
+TRUE,MSR_LOYALKAV_POS,LOYALKAV,IIFL_CDC,FY261AP07,DCLIENT,FALSE,0.00.00,FALSE,,,0.0,251598,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (LOYALKAV),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.17|11002|FY261AP07|pass|False,,,125000
+TRUE,MSN_NAVEENTRIPATHI_POS,MNAVEENT,IIFL_CDC,FY261AP07,DCLIENT,FALSE,0.00.00,FALSE,,,0.0,251620,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (MNAVEENT),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.17|11002|FY261AP07|pass|False,,,125000
+TRUE,MSR_RYADAV3_POS,MRAHULY2,IIFL_CDC,FY261AP07,DCLIENT,FALSE,0.00.00,FALSE,,,0.0,503193,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (MRAHULY2),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.17|11002|FY261AP07|pass|False,,,250000
+TRUE,MSN_RAJESHS_POS,MRAJESSH,IIFL_CDC,FY261AP07,DCLIENT,FALSE,0.00.00,FALSE,,,0.0,401589,FALSE,0.0,0,,,1,FALSE,1,0,DealerID (MRAJESSH),FALSE,0~0~0~0,0,,TRUE,PriceSpread,15%,3,2,,10.124.0.17|11002|FY261AP07|pass|False,,,200000

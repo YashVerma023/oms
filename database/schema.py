@@ -93,6 +93,30 @@ CREATE TABLE `jainam` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 """
 
+# Source: the 'Max Loss Calculation' sheet of the daily Calculation workbook.
+# Held as uploaded, one row per account per date, so what was applied on any
+# given day can be read back. `Stoxxo Max Loss` and `MStech Max Loss` are kept
+# apart deliberately: they are equal today but feed different systems.
+TABLES["maxloss"] = """
+CREATE TABLE `maxloss` (
+    `Date`              DATE            NOT NULL,
+    `User ID`           VARCHAR(32)     NOT NULL,
+    `Broker`            VARCHAR(64)     NULL,
+    `Broker Group`      VARCHAR(64)     NULL,
+    `Algo`              VARCHAR(8)      NULL,
+    `Server`            VARCHAR(32)     NULL,
+    `Allocation`        DECIMAL(18,4)   NULL,
+    `Realised P&L`      DECIMAL(18,4)   NULL,
+    `Unrealised P&L`    DECIMAL(18,4)   NULL,
+    `Stoxxo Max Loss`   DECIMAL(18,4)   NULL,
+    `MStech Max Loss`   DECIMAL(18,4)   NULL,
+    `created_at`        TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`Date`, `User ID`),
+    KEY `idx_maxloss_user` (`User ID`),
+    KEY `idx_maxloss_server` (`Server`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+"""
+
 # Source: USERSETTING.csv. Header is row 7; rows 1-6 are comments and are
 # skipped on upload. Header ' LIMIT Type' is stored stripped as `LIMIT Type`.
 TABLES["usersetting"] = """

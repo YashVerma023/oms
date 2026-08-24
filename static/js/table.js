@@ -584,6 +584,13 @@
           var picker = $("datePick");
           if (picker && picker.value !== data.date) picker.value = data.date;
         }
+        // An empty day is ambiguous: nothing uploaded, or uploaded under the
+        // date the sheet carries. Say which.
+        empty.textContent = (!data.rows.length && data.latest && data.latest !== state.date)
+          ? "Nothing for " + state.date + ". The most recent data is dated "
+            + data.latest + " - choose that date above."
+          : "No data to display.";
+
         state.selected.clear();
         buildDisplay();
         buildChoiceFilters();
