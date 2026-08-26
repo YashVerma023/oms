@@ -1,0 +1,23 @@
+# Never bake secrets or a developer's local state into an image.
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+*.egg-info
+
+# Written at runtime and mounted as volumes.
+logs
+data
+
+# Not needed to run the portal.
+tests
+node_modules
+UI_PLAN.md
+*.md
+!README.md

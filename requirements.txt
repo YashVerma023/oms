@@ -11,3 +11,7 @@ openpyxl==3.1.5
 # "cannot convert longdouble infinity to integer" - fixed in 2.2.
 pandas>=2.2
 numpy>=2.2
+
+# Production WSGI server. The Flask dev server is single-threaded and has a
+# remote debugger; neither belongs in front of a trading desk.
+gunicorn==23.0.0

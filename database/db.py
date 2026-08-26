@@ -57,9 +57,17 @@ def setup_logging(level: str | None = None) -> None:
     logging.getLogger("mysql.connector").setLevel(logging.WARNING)
 
 
+# get_config() runs on every connection, and in a container there is never a
+# .env file - the environment comes from compose. Warn once per process, or the
+# real log is buried under one line per connect.
+_warned_no_env = False
+
+
 def get_config() -> dict[str, Any]:
     """Read DB settings from the environment. Raises if required values are missing."""
-    if not ENV_PATH.exists():
+    global _warned_no_env
+    if not ENV_PATH.exists() and not _warned_no_env:
+        _warned_no_env = True
         logger.warning("No .env file at %s - falling back to process environment", ENV_PATH)
 
     user = os.getenv("DB_USER")
