@@ -1,0 +1,7 @@
+# Please fill all values carefully. ANY VALUE WHICH IS NOT REQUIRED CAN BE LEFT BLANK.
+# For Boolean, True / False OR Yes / No can be used.
+# For Time, enter like 15:15:00.
+# User Account: SemiCollon Separated list of User IDs Eg AB1234; XY0987 etc
+# Allowed Trades: BOTH, LONG, SHORT
+Enabled,StrategyTag,No Duplicate Signals for Seconds,Start Time,End Time,SqOff Time,User Account,Unique ID Req for Order,Entry Order Retry,Entry Retry Count,Entry Retry Wait (Seconds),Entry Max Wait (Seconds),Exit Order Retry,Exit Retry Count,Exit Retry Wait (Seconds),Exit Max Wait (Seconds),Cancel Previous Open Signal,Stop & Reverse,Part / Multi Exits,Hold Sell Seconds,Allowed Trades,Max Loss Wait Seconds,Max Profit,Max Loss, Profit Locking,Delay Between Users,LIMIT Only, LIMIT Type,LIMIT Spread,MaxModifications,LimitModificationGapTime
+True,,0,00:00:00,00:00:00,00:00:00,,False,True,5,15,80,True,15,15,300,True,False,True,0,BOTH,0,0,0,0~0~0~0,0,False,BidAsk,0,0,0

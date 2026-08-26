@@ -2,21 +2,23 @@
 
 {% block title %}Data Operation &middot; OMP{% endblock %}
 
+{% block page_style %}soft{% endblock %}
+
 {% block content %}
   <div class="side-layout">
     <nav class="side-nav">
       <button class="side-item active" type="button" data-section="add">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         <span>Add table</span>
       </button>
 
       <button class="side-item" type="button" data-section="alter">
-        <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg>
         <span>Alter table</span>
       </button>
 
       <button class="side-item" type="button" data-section="tables">
-        <svg viewBox="0 0 24 24">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <ellipse cx="12" cy="6" rx="8" ry="3"/>
           <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/>
           <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>
@@ -73,7 +75,7 @@
             </div>
 
             <div class="edit-actions" style="margin-top:12px">
-              <button class="tool" id="btnAddColumn" type="button">Add column</button>
+              <button class="tool tint-amber" id="btnAddColumn" type="button">Add column</button>
               <button class="btn-primary" id="btnCreateManual" type="button"
                       style="width:auto">Create table</button>
             </div>
@@ -99,7 +101,7 @@
               <input type="text" id="sheetTable" placeholder="broker_positions" required>
             </label>
 
-            <input class="file-input" type="file" id="sheetFile"
+            <input class="file-input" type="file" id="sheetFile" aria-label="Choose a sheet or workbook to read columns from"
                    accept=".csv,.tsv,.xlsx,.xlsm,.xltx">
 
             {# Filled from the workbook as soon as a file is chosen. #}
@@ -108,8 +110,8 @@
                 <span class="field-label">Which sheet?</span>
                 <select id="sheetPick"></select>
               </label>
-              <button class="tool" id="btnViewSchema" type="button">
-                <svg viewBox="0 0 24 24">
+              <button class="tool tint-blue" id="btnViewSchema" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/>
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
@@ -117,7 +119,7 @@
               </button>
             </div>
 
-            <button class="tool" id="btnInspect" type="button" hidden>Read the file</button>
+            <button class="tool tint-blue" id="btnInspect" type="button" hidden>Read the file</button>
             <p class="upload-note" id="sheetNote"></p>
           </form>
         </div>
@@ -211,10 +213,10 @@
           </div>
 
           <div class="toolbar">
-            <input class="search" id="tableSearch" type="search"
+            <input class="search" id="tableSearch" aria-label="Search tables" type="search"
                    placeholder="Search tables..." autocomplete="off">
-            <button class="tool icon" id="btnTablesReload" type="button" title="Refresh">
-              <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+            <button class="tool icon tint-blue" id="btnTablesReload" type="button" title="Refresh">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
             </button>
           </div>
 
@@ -235,7 +237,7 @@
         <div id="tableScreen" hidden>
           <div class="detail-head">
             <button class="tool" id="btnBack" type="button">
-              <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
               <span>All tables</span>
             </button>
             <div class="detail-title">
@@ -251,13 +253,13 @@
           {# Data #}
           <div id="rowsPane">
             <div class="toolbar">
-              <input class="search" id="rowSearch" type="search"
+              <input class="search" id="rowSearch" aria-label="Search rows" type="search"
                      placeholder="Search this table..." autocomplete="off">
-              <button class="tool icon" id="btnRowsReload" type="button" title="Refresh">
-                <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+              <button class="tool icon tint-blue" id="btnRowsReload" type="button" title="Refresh">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
               </button>
-              <button class="tool icon" id="btnRowsExport" type="button" title="Download CSV">
-                <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+              <button class="tool icon tint-teal" id="btnRowsExport" type="button" title="Download CSV">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
               </button>
             </div>
 

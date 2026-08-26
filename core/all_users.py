@@ -36,6 +36,22 @@ READONLY_COLUMNS = {"id", PK, "ml_pct", "Operator Name", "Date", "created_at", "
 
 
 
+def subcategories() -> list[str]:
+    """Every SubCategory in the working set, for a pick list.
+
+    Read from the data rather than kept as a second list, so a new one shows up
+    the day it is first uploaded instead of when somebody remembers to add it.
+    """
+    rows = db.session.execute(
+        text(
+            f"SELECT DISTINCT `SubCategory` FROM `{TABLE}` "
+            f"WHERE {WORKING} AND `SubCategory` IS NOT NULL "
+            f"AND TRIM(`SubCategory`) <> '' ORDER BY `SubCategory`"
+        )
+    ).scalars().all()
+    return [str(r).strip().upper() for r in rows if str(r).strip()]
+
+
 def editable_columns() -> list[dict[str, Any]]:
     """Columns the edit form may write, in table order."""
     rows = db.session.execute(
@@ -220,81 +236,6 @@ def reconcile_all() -> dict[str, int]:
         len(rows), len(updates), inactive,
     )
     return {"checked": len(rows), "updated": len(updates), "inactive": inactive}
-
-
-def working_count() -> int:
-    """How many rows are in the editable working set."""
-    return db.session.execute(
-        text(f"SELECT COUNT(*) FROM `{TABLE}` WHERE {WORKING}")
-    ).scalar() or 0
-
-
-def snapshot_dates() -> list[str]:
-    """Dates that already hold a saved snapshot, newest first."""
-    rows = db.session.execute(
-        text(f"SELECT DISTINCT `Date` FROM `{TABLE}` "
-             "WHERE `Date` IS NOT NULL ORDER BY `Date` DESC")
-    ).scalars().all()
-    # Drivers differ on whether DATE arrives as a date object or a string.
-    return [d.isoformat() if hasattr(d, "isoformat") else str(d) for d in rows]
-
-
-def save_snapshot(on_date: dt.date) -> dict[str, Any]:
-    """Store the working set as the snapshot for `on_date`.
-
-    Any snapshot already held for that date is replaced. The working set is
-    left untouched, so editing continues from where it was.
-
-    Returns:
-        Counts of rows saved and rows replaced.
-
-    Raises:
-        ValueError: the working set is empty - there is nothing to save.
-    """
-    columns = [
-        name
-        for name, in db.session.execute(
-            text(
-                "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = :schema AND TABLE_NAME = :table "
-                "ORDER BY ORDINAL_POSITION"
-            ),
-            {"schema": get_config()["database"], "table": TABLE},
-        ).all()
-        if name not in ("id", "Date", "created_at", "updated_at")
-    ]
-
-    working = db.session.execute(
-        text(f"SELECT COUNT(*) FROM `{TABLE}` WHERE {WORKING}")
-    ).scalar()
-    if not working:
-        raise ValueError("There are no working rows to save. Upload All Users first.")
-
-    column_list = ", ".join(f"`{c}`" for c in columns)
-
-    try:
-        replaced = db.session.execute(
-            text(f"DELETE FROM `{TABLE}` WHERE `Date` = :d"), {"d": on_date}
-        ).rowcount
-
-        db.session.execute(
-            text(
-                f"INSERT INTO `{TABLE}` ({column_list}, `Date`) "
-                f"SELECT {column_list}, :d FROM `{TABLE}` WHERE {WORKING}"
-            ),
-            {"d": on_date},
-        )
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Saving the all_users snapshot for %s failed", on_date)
-        raise
-
-    logger.info(
-        "Saved all_users snapshot for %s: %s row(s) written, %s replaced",
-        on_date, working, replaced,
-    )
-    return {"date": on_date.isoformat(), "saved": working, "replaced": replaced}
 
 
 def _parse(raw: Any, column: dict[str, Any]) -> Any:

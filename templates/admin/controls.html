@@ -2,6 +2,8 @@
 
 {% block title %}Admin Controls &middot; OMP{% endblock %}
 
+{% block page_style %}soft{% endblock %}
+
 {% block content %}
   <div class="page-head">
     <div>
@@ -10,32 +12,9 @@
     </div>
   </div>
 
-  <div class="upload-grid">
-    <form class="upload-card" method="post"
-          action="{{ url_for('admin.save_all_users') }}">
-      <div class="upload-card-head">
-        <h2>Save All Users</h2>
-        <span class="target-mode append">{{ working_rows }} row(s)</span>
-      </div>
-
-      <p class="upload-note">
-        Stores the current All Users data against a date. Saving a date that
-        already holds data replaces it.
-      </p>
-
-      <label class="field">
-        <span class="field-label">Date</span>
-        <input type="date" name="date" value="{{ today }}" required>
-      </label>
-
-      <button class="btn-primary" type="submit"
-              {% if not working_rows %}disabled{% endif %}>Save All Users</button>
-
-      {% if not working_rows %}
-        <p class="upload-note">Nothing to save &mdash; upload All Users first.</p>
-      {% endif %}
-    </form>
-
+  {# One card: Save All Users was removed because an All Users upload already
+     stamps its own date, so the snapshot step had nothing left to do. #}
+  <div class="control-single">
     <form class="upload-card" method="post"
           action="{{ url_for('admin.save_today_mode') }}">
       <div class="upload-card-head">
@@ -55,21 +34,23 @@
         A pinned mode wins, and lapses at the end of the day.
       </p>
 
-      <label class="field">
-        <span class="field-label">Mode</span>
-        <select name="mode">
-          <option value="">
-            Follow the schedule{% if mode_state.scheduled %} ({{ mode_state.scheduled }}){% else %} (none - {{ fallback_mode }}){% endif %}
-          </option>
-          {% for m in modes %}
-            <option value="{{ m }}" {% if m == mode_state.manual %}selected{% endif %}>
-              Pin to {{ m }}
+      <div class="control-row">
+        <label class="field">
+          <span class="field-label">Mode</span>
+          <select name="mode" aria-label="Mode for today">
+            <option value="">
+              Follow the schedule{% if mode_state.scheduled %} ({{ mode_state.scheduled }}){% else %} (none - {{ fallback_mode }}){% endif %}
             </option>
-          {% endfor %}
-        </select>
-      </label>
+            {% for m in modes %}
+              <option value="{{ m }}" {% if m == mode_state.manual %}selected{% endif %}>
+                Pin to {{ m }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
 
-      <button class="btn-primary" type="submit">Save DTE Mode</button>
+        <button class="btn-primary" type="submit">Save DTE Mode</button>
+      </div>
 
       <table class="mini-table">
         <tbody>
@@ -92,11 +73,11 @@
 
   {# Rules are grouped and closed by default: four tables at once is a wall.
      <details> gives the open/close behaviour natively, no JS. #}
-  <details class="rules-group" {% if error_subcategories or error_brokers %}open{% endif %}>
+  <details class="rules-group" {% if error_subcategories %}open{% endif %}>
     <summary>
-      <svg class="group-caret" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      <svg class="group-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
       <span>Allocation rules</span>
-      <span class="group-hint">Category and broker rules for the allocation check</span>
+      <span class="group-hint">Category rules for the allocation check</span>
     </summary>
 
   {# ---------------- SubCategory rules ---------------- #}
@@ -134,17 +115,17 @@
           <tbody id="subcatBody">
             {% for row in subcategories %}
               <tr>
-                <td><input name="name" value="{{ row.name }}" autocomplete="off"></td>
-                <td class="num"><input name="pct" type="number" step="1" min="0" max="100"
+                <td><input name="name" value="{{ row.name }}" autocomplete="off" aria-label="Name"></td>
+                <td class="num"><input name="pct" type="number" step="1" min="0" max="100" aria-label="Percent of capital"
                                        value="{{ row.pct }}"></td>
                 <td>
-                  <select name="method">
+                  <select name="method" aria-label="Method">
                     {% for m in methods %}
                       <option value="{{ m }}" {% if m == row.method %}selected{% endif %}>{{ m }}</option>
                     {% endfor %}
                   </select>
                 </td>
-                <td><input name="note" value="{{ row.note }}" autocomplete="off"></td>
+                <td><input name="note" value="{{ row.note }}" autocomplete="off" aria-label="Note"></td>
                 <td class="col-select">
                   <button class="row-drop" type="button" title="Remove">&times;</button>
                 </td>
@@ -161,71 +142,11 @@
     </div>
   </form>
 
-  {# ---------------- Broker rules ---------------- #}
-  <form class="edit-form rules-block" method="post"
-        action="{{ url_for('admin.save_brokers') }}">
-    <div class="rules-head">
-      <div>
-        <h2>Broker rules</h2>
-        <p class="subtitle">
-          Per-broker overrides matched on the All Users <b>Broker</b> column.
-          These outrank the Fixed, Jainam and category rules.
-          <i>% of capital</i> takes that share of running capital;
-          <i>From FIX (CR)</i> derives it from the FIX column
-          (multiplier 1,00,000 means FIX 1 &rarr; 1,00,000).
-        </p>
-      </div>
-    </div>
-
-    {% if error_brokers %}
-      <div class="flash flash-error">{{ error_brokers }}</div>
-    {% endif %}
-
-    <div class="panel">
-      <div class="table-scroll" style="max-height:260px">
-        <table class="grid rules-table centred-table">
-          <thead>
-            <tr class="head-row">
-              <th>Broker</th>
-              <th>Rule</th>
-              <th class="num">Value</th>
-              <th class="col-select"></th>
-            </tr>
-          </thead>
-          <tbody id="brokerBody">
-            {% for row in brokers %}
-              <tr>
-                <td><input name="name" value="{{ row.name }}" autocomplete="off"></td>
-                <td>
-                  <select name="method">
-                    {% for m in broker_methods %}
-                      <option value="{{ m }}" {% if m == row.method %}selected{% endif %}>{{ m }}</option>
-                    {% endfor %}
-                  </select>
-                </td>
-                <td class="num"><input name="value" type="number" step="any"
-                                       value="{{ row.value }}"></td>
-                <td class="col-select">
-                  <button class="row-drop" type="button" title="Remove">&times;</button>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="edit-actions">
-      <button class="tool" type="button" data-add="brokerBody">Add broker</button>
-      <button class="btn-primary" type="submit">Save broker rules</button>
-    </div>
-  </form>
-
   </details>
 
   <details class="rules-group" {% if error_maxloss or error_submaxloss or error_algomaxloss %}open{% endif %}>
     <summary>
-      <svg class="group-caret" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      <svg class="group-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
       <span>Max loss rules</span>
       <span class="group-hint">Per algo and DTE mode, plus the SubCategory overrides</span>
     </summary>
@@ -264,10 +185,10 @@
           <tbody id="maxlossBody">
             {% for row in maxloss_rows %}
               <tr>
-                <td><input name="algo" value="{{ row.algo }}" autocomplete="off"></td>
+                <td><input name="algo" value="{{ row.algo }}" autocomplete="off" aria-label="Algo"></td>
                 {% for mode in modes %}
                   <td class="num">
-                    <input name="{{ mode }}" type="number" step="any" min="0"
+                    <input name="{{ mode }}" type="number" step="any" min="0" aria-label="Multiplier for {{ mode }}"
                            value="{{ row[mode] if row[mode] is not none else '' }}">
                   </td>
                 {% endfor %}
@@ -324,11 +245,11 @@
           <tbody id="algoMaxlossBody">
             {% for row in algomaxloss_rows %}
               <tr>
-                <td><input name="algo" value="{{ row.algo }}" autocomplete="off"></td>
+                <td><input name="algo" value="{{ row.algo }}" autocomplete="off" aria-label="Algo"></td>
                 {% for mode in modes %}
-                  <td class="num"><input name="{{ mode }}_mstech"
+                  <td class="num"><input name="{{ mode }}_mstech" aria-label="MStech multiplier for {{ mode }}"
                                          value="{{ row[mode ~ '_mstech'] }}"></td>
-                  <td class="num"><input name="{{ mode }}_stoxxo"
+                  <td class="num"><input name="{{ mode }}_stoxxo" aria-label="Stoxxo multiplier for {{ mode }}"
                                          value="{{ row[mode ~ '_stoxxo'] }}"></td>
                 {% endfor %}
                 <td class="col-select">
@@ -381,10 +302,10 @@
           <tbody id="subMaxlossBody">
             {% for row in submaxloss_rows %}
               <tr>
-                <td><input name="name" value="{{ row.name }}" autocomplete="off"></td>
-                <td class="num"><input name="mstech" type="number" step="any" min="0"
+                <td><input name="name" value="{{ row.name }}" autocomplete="off" aria-label="Name"></td>
+                <td class="num"><input name="mstech" type="number" step="any" min="0" aria-label="MStech multiplier"
                                        value="{{ row.mstech }}"></td>
-                <td class="num"><input name="stoxxo" type="number" step="any" min="0"
+                <td class="num"><input name="stoxxo" type="number" step="any" min="0" aria-label="Stoxxo multiplier"
                                        value="{{ row.stoxxo }}"></td>
                 <td class="col-select">
                   <button class="row-drop" type="button" title="Remove">&times;</button>
@@ -409,6 +330,210 @@
     Every save keeps the previous version as
     <span class="mono">allocation_rules.json.bak</span>.
   </p>
+  {# ---------------- Strategy tag rules ---------------- #}
+  <details class="rules-group"
+           {% if error_strategymap or error_bands or error_common %}open{% endif %}>
+    <summary>
+      <svg class="group-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      <span>Strategy tag rules</span>
+      <span class="group-hint">Which tags run, and how the multiplier is worked out</span>
+    </summary>
+
+  {# ---- the tag map ---- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_strategy_map') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Tags per step</h2>
+        <p class="subtitle">
+          One row per <b>algo, cycle and step</b>. A tag opened earlier in the
+          cycle is listed again on every later step, which is how it carries
+          forward &mdash; Nifty 0DTE repeats <span class="mono">NF4DTE</span>
+          and <span class="mono">NF1DTE</span> on purpose. Separate tags with
+          commas, in the order they should be written.
+        </p>
+      </div>
+    </div>
+
+    {% if error_strategymap %}
+      <div class="flash flash-error">{{ error_strategymap }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="table-scroll" style="max-height:420px">
+        <table class="grid rules-table">
+          <thead>
+            <tr class="head-row">
+              <th>Algo</th>
+              <th>Cycle</th>
+              <th>Step</th>
+              <th>Tags</th>
+              <th class="col-select"></th>
+            </tr>
+          </thead>
+          <tbody id="strategyMapBody">
+            {% for row in strategy_map %}
+              <tr>
+                <td><input name="algo" value="{{ row.algo }}" aria-label="Algo"
+                           autocomplete="off"></td>
+                <td>
+                  <select name="cycle" aria-label="Cycle">
+                    {% for name in cycles %}
+                      <option value="{{ name }}"
+                              {% if name == row.cycle %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td>
+                  <select name="dte" aria-label="Step">
+                    {% for m in modes %}
+                      <option value="{{ m }}"
+                              {% if m == row.dte %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td class="tag-list"><input name="tags" value="{{ row.tags }}"
+                           aria-label="Tags" autocomplete="off"></td>
+                <td class="col-select">
+                  <button class="row-drop" type="button" title="Remove">&times;</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="tool" type="button" data-add="strategyMapBody">Add rule</button>
+      <button class="btn-primary" type="submit">Save tag map</button>
+    </div>
+  </form>
+
+  {# ---- the 4DTE / 1DTE bands ---- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_strategy_bands') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Multiplier bands</h2>
+        <p class="subtitle">
+          For the single-tag steps only. <b>First step</b> is the allocation at
+          which the multiplier reaches 2; <b>width</b> is each  band after that.
+          <b>Edge</b> decides where an exact boundary falls &mdash; <i>up</i>
+          gives 3,00,000 a 3, <i>down</i> gives 2,50,000 a 2. The two steps
+          deliberately differ today. The 0DTE series does not use these: its
+          bucket is the Setup rounding basis &divide; 100.
+        </p>
+      </div>
+    </div>
+
+    {% if error_bands %}
+      <div class="flash flash-error">{{ error_bands }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <table class="grid rules-table">
+        <thead>
+          <tr class="head-row">
+            <th>Step</th>
+            <th class="num">Multiplier 2 from</th>
+            <th class="num">Band width</th>
+            <th>Edge</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in bands %}
+            <tr>
+              <td>
+                <input name="step" value="{{ row.step }}" aria-label="Step" readonly>
+              </td>
+              <td class="num"><input name="first_step" type="number" step="1" min="1"
+                                     aria-label="Multiplier 2 from"
+                                     value="{{ row.first_step }}"></td>
+              <td class="num"><input name="width" type="number" step="1" min="1"
+                                     aria-label="Band width" value="{{ row.width }}"></td>
+              <td>
+                <select name="edge" aria-label="Edge">
+                  <option value="up" {% if row.edge == 'up' %}selected{% endif %}>
+                    Up &mdash; the edge takes the higher multiplier
+                  </option>
+                  <option value="down" {% if row.edge == 'down' %}selected{% endif %}>
+                    Down &mdash; the edge stays on the lower multiplier
+                  </option>
+                </select>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="edit-actions">
+      <button class="btn-primary" type="submit">Save bands</button>
+    </div>
+  </form>
+
+  {# ---- the common A series ---- #}
+  <form class="edit-form rules-block" method="post"
+        action="{{ url_for('admin.save_common_series') }}">
+    <div class="rules-head">
+      <div>
+        <h2>Common series</h2>
+        <p class="subtitle">
+          The tags every algo shares. Membership is by <b>SubCategory</b>: only
+          accounts whose SubCategory is listed here join them. The multiplier
+          is worked out exactly as for the algo series &mdash; same bucket, same
+          round-robin. <b>Leave the SubCategory list empty and nobody joins</b>,
+          so the tags are not written at all.
+        </p>
+      </div>
+    </div>
+
+    {% if error_common %}
+      <div class="flash flash-error">{{ error_common }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="common-grid">
+        <label class="field">
+          <span class="field-label">Tags <em>comma separated, in order</em></span>
+          <input name="tags" value="{{ common.tags | join(', ') }}" autocomplete="off">
+        </label>
+        <div class="field">
+          <span class="field-label">
+            SubCategories that join <em>tick the ones that trade the A tags</em>
+          </span>
+          {% if subcategory_choices %}
+            <div class="tick-list" role="group"
+                 aria-label="SubCategories that join the common series">
+              {% for choice in subcategory_choices %}
+                <label class="tick {% if choice.missing %}tick-missing{% endif %}">
+                  <input type="checkbox" name="subcategories"
+                         value="{{ choice.name }}"
+                         {% if choice.chosen %}checked{% endif %}>
+                  <span>{{ choice.name }}</span>
+                  {% if choice.missing %}
+                    <em title="Ticked, but no account currently has this SubCategory">not in use</em>
+                  {% endif %}
+                </label>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="upload-note">
+              No SubCategories found. Upload All Users and they will appear here.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-actions">
+      <button class="btn-primary" type="submit">Save common series</button>
+    </div>
+  </form>
+
+  </details>
+
 {% endblock %}
 
 {% block scripts %}

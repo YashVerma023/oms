@@ -2,6 +2,10 @@
 
 {% block title %}Setup &middot; OMP{% endblock %}
 
+{# Trialling the "soft" treatment here first. Remove this block to
+   put the page back exactly as it was. #}
+{% block page_style %}soft{% endblock %}
+
 {% block content %}
   <div class="page-head">
     <div>
@@ -26,18 +30,36 @@
         <input type="date" id="checkDate" value="{{ today }}">
       </label>
 
+      {# The cycle decides whether this step carries the day before forward,
+         which is why the previous file is needed on some 1DTE days and not
+         others. Defaults to the cycle the weekday falls in. #}
       <label class="field">
-        <span class="field-label">Previous day <em>for POS accounts</em></span>
-        <input type="date" id="prevDate">
+        <span class="field-label">Cycle <em>the expiry run this day is in</em></span>
+        <select id="cycle">
+          {% for name, steps in cycles.items() %}
+            <option value="{{ name }}" data-steps="{{ steps | join(',') }}"
+                    {% if name == cycle_state.cycle %}selected{% endif %}>
+              {{ name }} &mdash; {{ steps | join(' → ') }}
+            </option>
+          {% endfor %}
+        </select>
       </label>
 
       <label class="field">
-        <span class="field-label">Mode</span>
+        <span class="field-label">Step</span>
         <select id="mode">
           {% for m in modes %}
-            <option value="{{ m }}" {% if m == '1DTE' %}selected{% endif %}>{{ m }}</option>
+            <option value="{{ m }}"
+                    {% if m == cycle_state.mode %}selected{% endif %}>{{ m }}</option>
           {% endfor %}
         </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">
+          Previous day <em id="prevHint">for POS accounts</em>
+        </span>
+        <input type="date" id="prevDate">
       </label>
 
       <label class="field">
@@ -58,31 +80,81 @@
       </div>
     </div>
 
-    {# The day comes from the workbook's own Date column, so none is asked. #}
+    {# The day comes from the workbook's own Date column, so none is asked.
+       The state line matters: a file input is always empty after a page load,
+       so without it this box reads as an outstanding task on every visit. #}
     <form class="maxloss-upload" method="post" enctype="multipart/form-data"
           action="{{ url_for('admin.upload_maxloss') }}">
       <label class="field">
-        <span class="field-label">Max Loss workbook</span>
-        <input class="file-input" type="file" name="file" accept=".xlsx,.xlsm" required>
+        <span class="field-label">
+          Max Loss workbook
+          {% if maxloss_state.date %}
+            <em>already loaded &mdash; upload only to replace it</em>
+          {% else %}
+            <em>none loaded yet</em>
+          {% endif %}
+        </span>
+        <input class="file-input" type="file" name="file" accept=".xlsx,.xlsm">
       </label>
       <button class="tool" type="submit">Upload Max Loss sheet</button>
-      <p class="upload-note">
-        Reads the <span class="mono">Max Loss Calculation</span> sheet and
-        replaces that date's rows. Shown under All Users &rarr; Positional.
+
+      <p class="upload-note" id="maxlossState"
+         data-sheet-date="{{ maxloss_state.date or '' }}">
+        {% if maxloss_state.date %}
+          <b>{{ maxloss_state.rows }}</b> row(s) loaded, dated
+          <b>{{ maxloss_state.date }}</b>. The sheet carries its own date, so
+          a run only finds it when the check date matches.
+        {% else %}
+          No Max Loss sheet has been uploaded. Accounts that already ran will
+          be left alone until one is.
+        {% endif %}
       </p>
     </form>
 
-    <div class="edit-actions">
-      <button class="tool" id="btnRun" type="button">Run check</button>
-      <button class="btn-primary" id="btnApply" type="button" disabled>
-        Apply selected
-      </button>
-      {# Reads the database, so it reflects whatever has been applied. #}
-      <button class="tool" id="btnDownloadUsersetting" type="button"
-              title="One usersetting CSV per server, ready to upload">
-        <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
-        <span>Usersetting CSVs</span>
-      </button>
+    {# Two groups: what changes data on the left, what only reads it on the
+       right. Five identical-looking buttons in one row hides that difference. #}
+    <div class="edit-actions action-split">
+      <div class="action-group">
+        <button class="tool tint-blue" id="btnRun" type="button">Run check</button>
+        <button class="btn-primary" id="btnApply" type="button" disabled>
+          Apply selected
+        </button>
+      </div>
+
+      <div class="action-group reads">
+        {# Reads the database, so it reflects whatever has been applied. #}
+        {# Operators get this one too: they hand the file to their own
+           servers, so it is scoped to those servers rather than hidden. #}
+        <button class="tool tint-green" id="btnStrategyTags" type="button"
+                title="One strategy tag CSV per server, for the cycle and step above">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+          <span>Strategy tags</span>
+        </button>
+        <button class="tool tint-teal" id="btnDownloadUsersetting" type="button"
+                title="One usersetting CSV per server, in the platform's upload format">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+          <span>Usersetting CSVs</span>
+        </button>
+        {# Compiled workbooks are admin only: the usersetting one puts every
+           server's credentials in a single file. #}
+        {% if compiled %}
+          <button class="tool tint-violet" id="btnUsersettingCompiled" type="button"
+                  title="Every server's usersetting rows on one sheet, for review">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+            <span>Usersetting compiled</span>
+          </button>
+          <button class="tool tint-pink" id="btnStrategyCompiled" type="button"
+                  title="One sheet per algo, one column per tag, for review">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+            <span>Strategy compiled</span>
+          </button>
+          <button class="tool tint-amber" id="btnAllUsersCompiled" type="button"
+                  title="The chosen date's All Users rows, ready to upload again">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+            <span>All Users compiled</span>
+          </button>
+        {% endif %}
+      </div>
     </div>
 
     <p class="upload-note" id="setupNote">
@@ -111,7 +183,7 @@
 
   <div class="panel" id="tabAllocation" data-tab-panel="allocation">
     <div class="toolbar" style="margin:14px">
-      <input class="search" id="setupSearch" type="search"
+      <input class="search" id="setupSearch" aria-label="Search the allocation rows" type="search"
              placeholder="Search user, alias, rule..." autocomplete="off">
       <button class="tool" id="btnSelectAll" type="button">Select all changes</button>
       <button class="tool" id="btnSelectNone" type="button">Clear selection</button>
@@ -138,13 +210,23 @@
           {# Tick-box filters, built from the rows the check returned. #}
           <tr class="filter-row">
             <th class="col-select"></th>
-            <th></th>
-            <th></th>
+            <th>
+              <input class="col-filter" type="search" data-col="userid"
+                     data-type="text" autocomplete="off"
+                     aria-label="Filter by userId" placeholder="Search..."
+                     title="Contains match.&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
+            </th>
+            <th>
+              <input class="col-filter" type="search" data-col="alias"
+                     data-type="text" autocomplete="off"
+                     aria-label="Filter by alias" placeholder="Search..."
+                     title="Contains match.&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
+            </th>
             <th>
               <div class="choice" data-col="server">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -152,7 +234,7 @@
               <div class="choice" data-col="algo">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -160,7 +242,7 @@
               <div class="choice" data-col="operator_name">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -168,7 +250,7 @@
               <div class="choice" data-col="subcategory">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -176,16 +258,33 @@
               <div class="choice" data-col="rule">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
-            <th></th><th></th><th></th>
+            <th>
+              <input class="col-filter" type="search" data-col="capital"
+                     data-type="number" autocomplete="off"
+                     aria-label="Filter by capital" placeholder="&gt;10; &lt;50"
+                     title="Supports &gt;10  &lt;50  10-20  or a plain number.&#10;Type a space to show only blank rows.">
+            </th>
+            <th>
+              <input class="col-filter" type="search" data-col="current"
+                     data-type="number" autocomplete="off"
+                     aria-label="Filter by current allocation" placeholder="&gt;10; &lt;50"
+                     title="Supports &gt;10  &lt;50  10-20  or a plain number.&#10;Type a space to show only blank rows.">
+            </th>
+            <th>
+              <input class="col-filter" type="search" data-col="expected"
+                     data-type="number" autocomplete="off"
+                     aria-label="Filter by expected allocation" placeholder="&gt;10; &lt;50"
+                     title="Supports &gt;10  &lt;50  10-20  or a plain number.&#10;Type a space to show only blank rows.">
+            </th>
             <th>
               <div class="choice" data-col="status">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -193,7 +292,7 @@
               <div class="choice" data-col="remark">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -208,7 +307,7 @@
      proposes, so both halves of a run agree. #}
   <div class="panel" id="tabMaxloss" data-tab-panel="maxloss" hidden>
     <div class="toolbar" style="margin:14px">
-      <input class="search" id="maxlossSearch" type="search"
+      <input class="search" id="maxlossSearch" aria-label="Search the max loss rows" type="search"
              placeholder="Search user, alias, source..." autocomplete="off">
       <button class="tool" id="btnMaxlossSelectAll" type="button">
         Select all changes
@@ -239,13 +338,23 @@
           </tr>
           <tr class="filter-row">
             <th class="col-select"></th>
-            <th></th>
-            <th></th>
+            <th>
+              <input class="col-filter" type="search" data-col="userid"
+                     data-type="text" autocomplete="off"
+                     aria-label="Filter by userId" placeholder="Search..."
+                     title="Contains match.&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
+            </th>
+            <th>
+              <input class="col-filter" type="search" data-col="alias"
+                     data-type="text" autocomplete="off"
+                     aria-label="Filter by alias" placeholder="Search..."
+                     title="Contains match.&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
+            </th>
             <th>
               <div class="choice" data-col="server">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -253,7 +362,7 @@
               <div class="choice" data-col="algo">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -261,7 +370,7 @@
               <div class="choice" data-col="operator_name">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -269,7 +378,7 @@
               <div class="choice" data-col="subcategory">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
@@ -277,20 +386,42 @@
               <div class="choice" data-col="source">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
-            <th></th><th></th><th></th>
+            <th>
+              <input class="col-filter" type="search" data-col="allocation"
+                     data-type="number" autocomplete="off"
+                     aria-label="Filter by allocation" placeholder="&gt;10; &lt;50"
+                     title="Supports &gt;10  &lt;50  10-20  or a plain number.&#10;Type a space to show only blank rows.">
+            </th>
+            <th>
+              <input class="col-filter" type="search" data-col="stoxxo"
+                     data-type="number" autocomplete="off"
+                     aria-label="Filter by max loss US" placeholder="&gt;10; &lt;50"
+                     title="Supports &gt;10  &lt;50  10-20  or a plain number.&#10;Type a space to show only blank rows.">
+            </th>
+            <th>
+              <input class="col-filter" type="search" data-col="mstech"
+                     data-type="number" autocomplete="off"
+                     aria-label="Filter by max loss AU" placeholder="&gt;10; &lt;50"
+                     title="Supports &gt;10  &lt;50  10-20  or a plain number.&#10;Type a space to show only blank rows.">
+            </th>
             <th>
               <div class="choice" data-col="status">
                 <button class="choice-btn" type="button">
                   <span class="choice-label">Select...</span>
-                  <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                 </button>
               </div>
             </th>
-            <th></th>
+            <th>
+              <input class="col-filter" type="search" data-col="note"
+                     data-type="text" autocomplete="off"
+                     aria-label="Filter by remark" placeholder="Search..."
+                     title="Contains match.&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
+            </th>
           </tr>
         </thead>
         <tbody id="maxlossBody"></tbody>
@@ -305,9 +436,14 @@
     window.OMP_SETUP = {
       runUrl: "{{ url_for('admin.setup_run') }}",
       applyUrl: "{{ url_for('admin.setup_apply') }}",
-      usersettingUrl: "{{ url_for('admin.download_usersetting') }}"
+      usersettingUrl: "{{ url_for('admin.download_usersetting') }}",
+      strategyTagsUrl: "{{ url_for('admin.download_strategy_tags') }}"{% if compiled %},
+      strategyCompiledUrl: "{{ url_for('admin.download_strategy_compiled') }}",
+      usersettingCompiledUrl: "{{ url_for('admin.download_usersetting_compiled') }}",
+      allUsersCompiledUrl: "{{ url_for('admin.download_all_users_compiled') }}"{% endif %}
     };
   </script>
+  <script src="{{ url_for('static', filename='js/filters.js') }}"></script>
   <script src="{{ url_for('static', filename='js/download-files.js') }}"></script>
   <script src="{{ url_for('static', filename='js/choice-filter.js') }}"></script>
   <script src="{{ url_for('static', filename='js/setup.js') }}"></script>

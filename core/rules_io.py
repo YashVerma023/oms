@@ -37,6 +37,88 @@ DEFAULT_WEEKDAY_MODES = {
 FALLBACK_MODE = "0DTE"
 
 
+# ---------------------------------------------------------------------------
+# Cycles
+# ---------------------------------------------------------------------------
+# A cycle is one expiry's run of DTE steps. Two of them:
+#
+#     Nifty    4DTE -> 1DTE -> 0DTE      (Tuesday expiry)
+#     Sensex           1DTE -> 0DTE      (Thursday expiry)
+#
+# This is what makes the previous-day file optional: 1DTE opens the Sensex
+# cycle with nothing behind it, but sits mid-run in the Nifty cycle and must
+# carry Friday's 4DTE forward. The rule is simply that every step except the
+# first of its cycle needs the day before.
+NIFTY = "Nifty"
+SENSEX = "Sensex"
+
+DEFAULT_CYCLES: dict[str, tuple[str, ...]] = {
+    NIFTY: ("4DTE", "1DTE", "0DTE"),
+    SENSEX: ("1DTE", "0DTE"),
+}
+
+# Which cycle each weekday belongs to. Matches `DEFAULT_WEEKDAY_MODES`:
+# Fri 4DTE, Mon 1DTE, Tue 0DTE is one Nifty run; Wed 1DTE, Thu 0DTE is one
+# Sensex run. Weekends are absent, like the mode schedule.
+DEFAULT_WEEKDAY_CYCLES = {
+    "mon": NIFTY, "tue": NIFTY, "wed": SENSEX, "thu": SENSEX, "fri": NIFTY,
+}
+
+
+def cycles() -> dict[str, list[str]]:
+    """Cycle name -> its DTE steps in order."""
+    configured = rules_dict().get("cycles")
+    if isinstance(configured, dict) and configured:
+        return {str(name): [str(s) for s in steps]
+                for name, steps in configured.items()}
+    return {name: list(steps) for name, steps in DEFAULT_CYCLES.items()}
+
+
+def cycle_names() -> tuple[str, ...]:
+    return tuple(cycles())
+
+
+def cycle_steps(cycle: str) -> list[str]:
+    """The steps of `cycle`, or [] if it is not a known cycle."""
+    return cycles().get(cycle, [])
+
+
+def scheduled_cycle(on_date: dt.date) -> str | None:
+    """The cycle `on_date` falls in, or None at the weekend."""
+    weekday = WEEKDAYS[on_date.weekday()]
+    schedule = rules_dict().get("weekday_cycles") or DEFAULT_WEEKDAY_CYCLES
+    name = str(schedule.get(weekday) or "").strip()
+    return name if name in cycles() else None
+
+
+def needs_previous(cycle: str | None, mode: str) -> bool:
+    """Whether this step of this cycle needs the previous day's All Users.
+
+    Every step but the first carries forward. With no cycle given - a manual
+    run outside the schedule - this falls back to the `previous_day.required`
+    list in the rules file.
+    """
+    steps = cycle_steps(cycle) if cycle else []
+    if mode not in steps:
+        return previous_day_required(mode)
+    return steps.index(mode) > 0
+
+
+def cycle_state(on_date: dt.date | None = None) -> dict:
+    """Cycle, step and previous-day requirement for a date, for the UI."""
+    on_date = on_date or dt.date.today()
+    cycle = scheduled_cycle(on_date)
+    mode = today_mode(on_date)
+    steps = cycle_steps(cycle) if cycle else []
+    return {
+        "cycle": cycle,
+        "steps": steps,
+        "mode": mode,
+        "position": steps.index(mode) + 1 if mode in steps else None,
+        "needs_previous": needs_previous(cycle, mode),
+    }
+
+
 def rules_text() -> str:
     """The rules file verbatim, or an empty string if it cannot be read."""
     try:
@@ -215,14 +297,6 @@ METHOD_CAPITAL = "Capital %"
 METHOD_JAINAM = "Jainam sheet"
 METHODS = (METHOD_CAPITAL, METHOD_JAINAM)
 
-BROKER_PCT = "% of capital"
-BROKER_FIX = "From FIX (CR)"
-BROKER_METHODS = (BROKER_PCT, BROKER_FIX)
-
-_BROKER_METHOD_TO_KEY = {BROKER_PCT: "capital_pct", BROKER_FIX: "fix_allocation"}
-_BROKER_KEY_TO_METHOD = {v: k for k, v in _BROKER_METHOD_TO_KEY.items()}
-
-
 def subcategory_rows() -> list[dict]:
     """SubCategory rules as table rows."""
     rows = []
@@ -238,15 +312,6 @@ def subcategory_rows() -> list[dict]:
                 "note": cfg.get("note", ""),
             }
         )
-    return rows
-
-
-def broker_rows() -> list[dict]:
-    rows = []
-    for name, cfg in rules_dict().get("broker_rules", {}).items():
-        method = _BROKER_KEY_TO_METHOD.get(cfg.get("method"), BROKER_PCT)
-        value = cfg.get("pct") if method == BROKER_PCT else cfg.get("multiplier")
-        rows.append({"name": name, "method": method, "value": value})
     return rows
 
 
@@ -637,36 +702,6 @@ def save_subcategories(rows: list[dict]) -> None:
     _write(rules)
 
 
-def save_brokers(rows: list[dict]) -> None:
-    """Replace the broker overrides."""
-    out: dict[str, dict] = {}
-    for row in rows:
-        name = (row.get("name") or "").strip().upper()
-        if not name:
-            continue
-        if name in out:
-            raise ValueError(f"Broker '{name}' appears more than once.")
-
-        method = row.get("method") or BROKER_PCT
-        if method == BROKER_PCT:
-            out[name] = {
-                "method": "capital_pct",
-                "pct": _percent(row.get("value", 0), f"Broker '{name}'"),
-            }
-        else:
-            try:
-                multiplier = float(row.get("value") or 0)
-            except (TypeError, ValueError):
-                raise ValueError(f"Broker '{name}': multiplier must be a number.") from None
-            if multiplier <= 0:
-                raise ValueError(f"Broker '{name}': multiplier must be above 0.")
-            out[name] = {"method": "fix_allocation", "multiplier": multiplier}
-
-    rules = rules_dict()
-    rules["broker_rules"] = out
-    _write(rules)
-
-
 def save_rounding(basis) -> None:
     """Set the rounding basis. Mode and divisor are left as they are."""
     try:
@@ -679,4 +714,195 @@ def save_rounding(basis) -> None:
     rules = rules_dict()
     block = rules.setdefault("rounding", {"mode": "half_up", "divisor": 100})
     block["basis"] = value
+    _write(rules)
+
+
+# ---------------------------------------------------------------------------
+# Strategy tags
+# ---------------------------------------------------------------------------
+# Which tags an algo runs on a cycle step, how the 4DTE / 1DTE multiplier bands
+# work, and who joins the common A series. The arithmetic lives in
+# `core.strategy_tags`; this only reads and writes the numbers.
+
+DEFAULT_COMMON_TAGS = ("A1", "A2", "A3", "A4", "A5")
+
+EDGES = ("up", "down")
+
+
+def strategy_tag_map() -> list[dict]:
+    """Tag map rows: algo, cycle, dte, tags."""
+    rows = rules_dict().get("strategy_tags", {}).get("map") or []
+    return [
+        {
+            "algo": str(r.get("algo", "")).strip(),
+            "cycle": str(r.get("cycle", "")).strip(),
+            "dte": str(r.get("dte", "")).strip(),
+            "tags": [str(t).strip() for t in (r.get("tags") or []) if str(t).strip()],
+        }
+        for r in rows
+    ]
+
+
+def tags_for(algo: str, cycle: str, dte: str) -> list[str]:
+    """The tags one algo runs on one step, or [] if the map has no entry."""
+    algo, cycle, dte = str(algo).strip(), str(cycle).strip(), str(dte).strip()
+    for row in strategy_tag_map():
+        if (row["algo"] == algo and row["cycle"].lower() == cycle.lower()
+                and row["dte"].upper() == dte.upper()):
+            return list(row["tags"])
+    return []
+
+
+def strategy_bands() -> dict[str, dict]:
+    """Per-step band settings, falling back to the values in use today."""
+    from core import strategy_tags          # local: avoids a cycle at import
+
+    stored = rules_dict().get("strategy_tags", {}).get("bands") or {}
+    out = {}
+    for step, default in strategy_tags.DEFAULT_BANDS.items():
+        band = stored.get(step) or {}
+        out[step] = {
+            "first_step": band.get("first_step", default["first_step"]),
+            "width": band.get("width", default["width"]),
+            "edge": band.get("edge", default["edge"]),
+        }
+    return out
+
+
+def common_series() -> dict:
+    """The A-series tag names and the SubCategories that join them.
+
+    An empty SubCategory list means no account joins, so the tags are simply
+    not written - which is the safe state before the desk has configured it.
+    """
+    block = rules_dict().get("strategy_tags", {}).get("common") or {}
+    return {
+        "tags": [str(t).strip() for t in (block.get("tags") or DEFAULT_COMMON_TAGS)
+                 if str(t).strip()],
+        "subcategories": [str(s).strip().upper()
+                          for s in (block.get("subcategories") or [])
+                          if str(s).strip()],
+    }
+
+
+def strategy_map_rows() -> list[dict]:
+    """The tag map as editable table rows - tags joined for one text box."""
+    return [
+        {"algo": r["algo"], "cycle": r["cycle"], "dte": r["dte"],
+         "tags": ", ".join(r["tags"])}
+        for r in strategy_tag_map()
+    ]
+
+
+def band_rows() -> list[dict]:
+    """The band settings as editable table rows."""
+    bands = strategy_bands()
+    return [
+        {"step": step, "first_step": b["first_step"], "width": b["width"],
+         "edge": b["edge"]}
+        for step, b in bands.items()
+    ]
+
+
+def save_strategy_map(rows: list[dict]) -> None:
+    """Replace the tag map.
+
+    Raises:
+        ValueError: a row is incomplete, or the same algo/cycle/step appears
+            twice - the lookup would then depend on file order.
+    """
+    out: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    for row in rows:
+        algo = (row.get("algo") or "").strip()
+        cycle = (row.get("cycle") or "").strip()
+        dte = (row.get("dte") or "").strip().upper()
+        tags = [t.strip() for t in (row.get("tags") or "").split(",") if t.strip()]
+
+        if not any((algo, cycle, dte, tags)):
+            continue                       # a blank row the user added and left
+        if not (algo and cycle and dte):
+            raise ValueError(
+                f"Every rule needs an algo, a cycle and a step - "
+                f"got algo {algo!r}, cycle {cycle!r}, step {dte!r}."
+            )
+        if not tags:
+            raise ValueError(f"Algo {algo} {cycle} {dte} lists no tags.")
+
+        key = (algo, cycle.lower(), dte)
+        if key in seen:
+            raise ValueError(
+                f"Algo {algo} {cycle} {dte} appears twice. One row per "
+                f"algo, cycle and step."
+            )
+        seen.add(key)
+        out.append({"algo": algo, "cycle": cycle, "dte": dte, "tags": tags})
+
+    rules = rules_dict()
+    block = rules.setdefault("strategy_tags", {})
+    block["map"] = out
+    _write(rules)
+
+
+def save_strategy_bands(rows: list[dict]) -> None:
+    """Replace the 4DTE / 1DTE band settings.
+
+    Raises:
+        ValueError: a number is missing, not positive, or the edge is not one
+            of the two directions.
+    """
+    out: dict[str, dict] = {}
+    for row in rows:
+        step = (row.get("step") or "").strip().upper()
+        if not step:
+            continue
+
+        try:
+            first = int(float(row.get("first_step") or 0))
+            width = int(float(row.get("width") or 0))
+        except (TypeError, ValueError):
+            raise ValueError(f"{step}: the band numbers must be whole numbers.") from None
+
+        if first <= 0 or width <= 0:
+            raise ValueError(f"{step}: the first step and the width must be above 0.")
+
+        edge = (row.get("edge") or "up").strip().lower()
+        if edge not in EDGES:
+            raise ValueError(
+                f"{step}: the edge must be '{EDGES[0]}' or '{EDGES[1]}', not {edge!r}."
+            )
+
+        out[step] = {"first_step": first, "width": width, "edge": edge}
+
+    rules = rules_dict()
+    block = rules.setdefault("strategy_tags", {})
+    block["bands"] = out
+    _write(rules)
+
+
+def save_common_series(tags: str, subcategories: Any) -> None:
+    """Replace the A-series tag names and the SubCategories that join them.
+
+    Args:
+        subcategories: the ticked list from the checklist, or a comma-separated
+            string. The list is stored as given and stays put until it is
+            changed again - it is not rebuilt per day.
+
+    Raises:
+        ValueError: no tags were given. An empty SubCategory list is allowed
+            and simply means nobody joins yet.
+    """
+    tag_list = [t.strip() for t in (tags or "").split(",") if t.strip()]
+    if not tag_list:
+        raise ValueError("The common series needs at least one tag name.")
+
+    if isinstance(subcategories, str):
+        subcategories = subcategories.split(",")
+    subs = sorted({str(s).strip().upper() for s in (subcategories or [])
+                   if str(s).strip()})
+
+    rules = rules_dict()
+    block = rules.setdefault("strategy_tags", {})
+    block["common"] = {"tags": tag_list, "subcategories": subs}
     _write(rules)

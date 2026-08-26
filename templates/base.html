@@ -8,13 +8,15 @@
   {# Applied before first paint so the saved theme does not flash. #}
   <script>
     (function () {
-      var t = localStorage.getItem("omp-theme") || "dark";
-      document.documentElement.setAttribute("data-theme", t);
+      var root = document.documentElement;
+      root.setAttribute("data-theme", localStorage.getItem("omp-theme") || "dark");
     })();
   </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
   {# CSS-only nav drawer: the checkbox drives it, no JS needed. #}
   <input type="checkbox" id="navToggle" class="nav-toggle-state" hidden>
   <label class="nav-scrim" for="navToggle" aria-label="Close menu"></label>
@@ -138,21 +140,40 @@
     </label>
   </header>
 
+  {# role=alert for failures so a screen reader is interrupted; role=status
+     for the rest, which can wait for a pause. #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       <div class="flashes">
         {% for category, message in messages %}
-          <div class="flash flash-{{ category }}">{{ message }}</div>
+          <div class="flash flash-{{ category }}"
+               role="{{ 'alert' if category == 'error' else 'status' }}">
+            <span class="flash-text">{{ message }}</span>
+            <button class="flash-close" type="button" aria-label="Dismiss">&times;</button>
+          </div>
         {% endfor %}
       </div>
     {% endif %}
   {% endwith %}
 
-  <main class="content">
+  <main class="content" id="main" tabindex="-1"
+        data-style="{% block page_style %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
 
+  {# One dialog for the whole app; OMPConfirm fills it in. Replaces
+     window.confirm, which cannot be styled, read on a phone, or themed. #}
+  <dialog class="omp-dialog" id="ompDialog">
+    <h2 id="ompDialogTitle">Confirm</h2>
+    <div class="omp-dialog-body" id="ompDialogBody"></div>
+    <div class="omp-dialog-actions">
+      <button class="tool" type="button" id="ompDialogCancel">Cancel</button>
+      <button class="btn-primary" type="button" id="ompDialogOk">Continue</button>
+    </div>
+  </dialog>
+
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

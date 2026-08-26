@@ -44,7 +44,12 @@
         return r.blob().then(function (blob) {
           save(blob, name);
 
-          var message = count + " file(s) downloaded: " + name + ".";
+          // A compiled workbook is one file, so its row count is the useful
+          // number; the per-server export reports the file count instead.
+          var rows = r.headers.get("X-OMP-Rows");
+          var message = rows
+            ? "Downloaded " + name + " - " + rows + " row(s)."
+            : count + " file(s) downloaded: " + name + ".";
           if (skipped.length) {
             message += " " + skipped.length + " account(s) left out - no server: "
               + skipped.slice(0, 5).join(", ")

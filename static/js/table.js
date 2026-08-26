@@ -119,6 +119,16 @@
 
   // ---- rendering -----------------------------------------------------------
 
+  var clearButton = $("searchClear");
+  if (clearButton) {
+    clearButton.addEventListener("click", function () {
+      var search = $("globalSearch");
+      search.value = "";
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+      search.focus();
+    });
+  }
+
   function pageCount() {
     return Math.max(1, Math.ceil(state.view.length / state.pageSize));
   }
@@ -209,6 +219,16 @@
     $("selectedCount").textContent =
       state.selected.size + " of " + state.view.length + " row(s) selected.";
 
+    // What the search actually narrowed to, next to the box that did it.
+    var search = $("globalSearch");
+    var count = $("searchCount");
+    var clear = $("searchClear");
+    if (search && count && clear) {
+      var typed = !!(search.value || "").trim();
+      count.textContent = typed ? state.view.length + " found" : "";
+      clear.hidden = !typed;
+    }
+
     // Left enabled with nothing selected: a disabled button gives no feedback,
     // which reads as "delete is broken" rather than "pick some rows first".
     var del = $("btnDelete");
@@ -247,8 +267,18 @@
     }
 
     var what = keys.length === 1 ? "1 row" : keys.length + " rows";
-    if (!window.confirm("Delete " + what + " permanently? This cannot be undone.")) return;
+    window.OMPConfirm({
+      title: "Delete rows",
+      body: "Delete " + what + " permanently?",
+      warning: "This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true
+    }).then(function (yes) { if (yes) doDelete(keys, what); });
+  }
 
+  // Split out so the confirmation can be asynchronous: the keys and the label
+  // travel with the call instead of relying on the closure.
+  function doDelete(keys, what) {
     var button = $("btnDelete");
     button.disabled = true;
     setStatus("Deleting " + what + "...");
@@ -397,7 +427,12 @@
       })
       .catch(function (err) {
         console.error("Could not save:", err);
-        window.alert("Could not save: " + err.message);
+        window.OMPConfirm({
+          title: "Could not save",
+          body: err.message,
+          confirmLabel: "OK",
+          cancelLabel: "Dismiss"
+        });
         render();
       });
   }

@@ -106,6 +106,33 @@ def _sheet(on_date: dt.date) -> dict[str, dict[str, Any]]:
     }
 
 
+def sheet_state() -> dict[str, Any]:
+    """What the uploaded Max Loss sheet currently holds.
+
+    The Setup tab shows this so the upload box reads as "already done, replace
+    if you want" rather than as an outstanding task. A file input is always
+    empty after a page load, so without this the form looks like it is asking
+    again on every visit.
+    """
+    row = db.session.execute(
+        text(
+            f"SELECT `Date`, COUNT(*) FROM `{SHEET_TABLE}` "
+            f"GROUP BY `Date` ORDER BY `Date` DESC LIMIT 1"
+        )
+    ).first()
+
+    if not row or row[0] is None:
+        return {"date": None, "rows": 0}
+
+    value = row[0]
+    if isinstance(value, dt.datetime):
+        value = value.date()
+    return {
+        "date": value.isoformat() if isinstance(value, dt.date) else str(value),
+        "rows": int(row[1] or 0),
+    }
+
+
 def _accounts(on_date: dt.date, servers: list[str] | None) -> list[dict[str, Any]]:
     sql = (
         "SELECT `userId`, `alias`, `algo`, `server`, `allocation`, `max_loss`, "

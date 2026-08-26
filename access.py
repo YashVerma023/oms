@@ -65,6 +65,17 @@ def can_upload(target: str) -> bool:
     return target not in OPERATOR_BLOCKED_UPLOADS
 
 
+def failure_detail() -> str:
+    """The 'where to look next' half of a failure message.
+
+    Only admins can read the log file, so pointing an operator at it is a dead
+    end that reads as 'this is your fault'. They get who to tell instead.
+    """
+    if is_admin():
+        return " See logs/omp.log."
+    return " Nothing was changed. Tell the data team if it keeps happening."
+
+
 def can_open_controls() -> bool:
     """Admin Controls - rules and Save All Users - is admin only."""
     return is_admin()

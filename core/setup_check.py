@@ -30,6 +30,7 @@ from sqlalchemy import bindparam, text
 
 from core import alias_rule
 from core import rules as business_rules
+from core import rules_io
 from core import allocation_check as ac
 from database.db import db
 
@@ -201,8 +202,16 @@ def run_check(
     previous_date: dt.date | None = None,
     rounding_basis: Any = None,
     servers: list[str] | None = None,
+    cycle: str | None = None,
 ) -> dict[str, Any]:
     """Compute expected allocations for `on_date`.
+
+    Args:
+        cycle: which expiry run this day belongs to - Nifty (4DTE, 1DTE, 0DTE)
+            or Sensex (1DTE, 0DTE). It decides whether the previous day is
+            needed: every step but the first of a cycle carries forward. The
+            same 1DTE mode opens the Sensex cycle with nothing behind it and
+            sits mid-run in the Nifty cycle.
 
     Returns a dict with the consolidated rows and a summary. Nothing is
     written - `apply_changes` does that.
@@ -255,10 +264,14 @@ def run_check(
         if df_prev.empty:
             raise ValueError(f"No All Users rows for the previous date {previous_date}.")
 
-    required_modes = set(rules.get("previous_day", {}).get("required", []))
-    if df_prev is None and mode in required_modes:
+    if df_prev is None and rules_io.needs_previous(cycle, mode):
+        steps = rules_io.cycle_steps(cycle) if cycle else []
         raise ValueError(
-            f"{mode} needs a previous-day date - the rules mark it as required."
+            f"{mode} needs the previous day's All Users date: it is step "
+            f"{steps.index(mode) + 1} of the {cycle} cycle "
+            f"({' -> '.join(steps)}), so it carries the day before forward."
+            if mode in steps
+            else f"{mode} needs a previous-day date - the rules mark it as required."
         )
 
     try:

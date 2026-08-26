@@ -16,6 +16,8 @@ from auth import roles_required
 # Aliased: the view below is also called `dashboard`.
 from core import dashboard as pivot
 from core import all_users, crud, derive, personal, rules, rules_io, usersetting_export
+from core import compiled_export
+from core import strategy_export
 from core import data_ops as data_ops_core
 from core import maxloss
 from database.db import db
@@ -80,7 +82,7 @@ def dashboard_data():
         return jsonify(pivot.build(on_date, access.operator_servers()))
     except Exception:
         logger.exception("Building the dashboard pivot failed")
-        return jsonify(error="Could not build the dashboard - see logs/omp.log."), 500
+        return jsonify(error="Could not build the dashboard." + access.failure_detail()), 500
 
 
 @bp.route("/table/<page_key>")
@@ -201,7 +203,7 @@ def delete_rows(page_key: str):
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Delete failed on page '%s'", page_key)
-        return jsonify(error="Delete failed - see logs/omp.log."), 500
+        return jsonify(error="Delete failed." + access.failure_detail()), 500
 
 
 @bp.route("/table/<page_key>/new", methods=["GET", "POST"])
@@ -224,7 +226,7 @@ def new_row(page_key: str):
             flash(str(exc), "error")
         except Exception:
             logger.exception("Create failed for page '%s'", page_key)
-            flash("Could not add the row - see logs/omp.log.", "error")
+            flash("Could not add the row." + access.failure_detail(), "error")
 
     return render_template(
         "shared/record_form.html",
@@ -257,18 +259,15 @@ def update_cell(page_key: str):
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Inline update failed on page '%s'", page_key)
-        return jsonify(error="Update failed - see logs/omp.log."), 500
+        return jsonify(error="Update failed." + access.failure_detail()), 500
 
 
 def _controls_page(**overrides):
     """Admin Controls, with the rule tables read from the rules file."""
     context = {
         "today": dt.date.today().isoformat(),
-        "working_rows": all_users.working_count(),
         "subcategories": rules_io.subcategory_rows(),
-        "brokers": rules_io.broker_rows(),
         "methods": rules_io.METHODS,
-        "broker_methods": rules_io.BROKER_METHODS,
         "modes": rules_io.modes(),
         "mode_state": rules_io.mode_state(),
         "schedule": rules_io.schedule_rows(),
@@ -277,14 +276,40 @@ def _controls_page(**overrides):
         "maxloss_rows": _maxloss_rows(),
         "submaxloss_rows": rules_io.subcategory_maxloss_rows(),
         "algomaxloss_rows": rules_io.algo_maxloss_rows(),
+        "strategy_map": rules_io.strategy_map_rows(),
+        "bands": rules_io.band_rows(),
+        "common": rules_io.common_series(),
+        "subcategory_choices": _subcategory_choices(),
+        "cycles": list(rules_io.cycles()),
         "error_subcategories": None,
-        "error_brokers": None,
         "error_maxloss": None,
         "error_submaxloss": None,
         "error_algomaxloss": None,
+        "error_strategymap": None,
+        "error_bands": None,
+        "error_common": None,
     }
     context.update(overrides)
     return render_template("admin/controls.html", **context)
+
+
+def _subcategory_choices() -> list[dict]:
+    """Every SubCategory to offer, ticked where it joins the common series.
+
+    A stored SubCategory that no longer appears in All Users is still listed
+    and still ticked - dropping it silently would quietly change who trades.
+    """
+    chosen = set(rules_io.common_series()["subcategories"])
+    try:
+        known = all_users.subcategories()
+    except Exception:
+        logger.exception("Could not read the SubCategory list")
+        known = []
+
+    return [
+        {"name": name, "chosen": name in chosen, "missing": name not in known}
+        for name in sorted(set(known) | chosen)
+    ]
 
 
 def _maxloss_rows() -> list[dict]:
@@ -327,24 +352,7 @@ def save_subcategories():
         return _controls_page(subcategories=rows, error_subcategories=str(exc))
     except Exception:
         logger.exception("Saving the category rules failed")
-        flash("Could not save the category rules - see logs/omp.log.", "error")
-        return redirect(url_for("admin.controls"))
-
-
-@bp.route("/controls/brokers", methods=["POST"])
-@roles_required("admin", "superadmin")
-def save_brokers():
-    """Replace the broker overrides from the Admin Controls table."""
-    rows = _rows_from_form(("name", "method", "value"))
-    try:
-        rules_io.save_brokers(rows)
-        flash("Broker rules saved.", "success")
-        return redirect(url_for("admin.controls"))
-    except ValueError as exc:
-        return _controls_page(brokers=rows, error_brokers=str(exc))
-    except Exception:
-        logger.exception("Saving the broker rules failed")
-        flash("Could not save the broker rules - see logs/omp.log.", "error")
+        flash("Could not save the category rules." + access.failure_detail(), "error")
         return redirect(url_for("admin.controls"))
 
 
@@ -369,7 +377,7 @@ def rebuild_personal():
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Rebuilding Personal failed")
-        return jsonify(error="Could not rebuild Personal - see logs/omp.log."), 500
+        return jsonify(error="Could not rebuild Personal." + access.failure_detail()), 500
 
     message = (
         f"Personal rebuilt for {result['date']}: {result['written']} account(s) "
@@ -405,7 +413,7 @@ def data_ops_tables():
         return jsonify(tables=data_ops_core.extra_tables())
     except Exception:
         logger.exception("Listing the additional tables failed")
-        return jsonify(error="Could not list the tables - see logs/omp.log."), 500
+        return jsonify(error="Could not list the tables." + access.failure_detail()), 500
 
 
 @bp.route("/data-ops/table/<name>", methods=["GET"])
@@ -418,7 +426,7 @@ def data_ops_table(name: str):
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Describing table '%s' failed", name)
-        return jsonify(error="Could not read the table - see logs/omp.log."), 500
+        return jsonify(error="Could not read the table." + access.failure_detail()), 500
 
 
 @bp.route("/data-ops/table/<name>/rows", methods=["GET"])
@@ -435,7 +443,7 @@ def data_ops_rows(name: str):
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Reading rows of '%s' failed", name)
-        return jsonify(error="Could not read the table - see logs/omp.log."), 500
+        return jsonify(error="Could not read the table." + access.failure_detail()), 500
 
 
 @bp.route("/data-ops/inspect", methods=["POST"])
@@ -490,7 +498,7 @@ def data_ops_create():
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Creating a table failed")
-        return jsonify(error="Could not create the table - see logs/omp.log."), 500
+        return jsonify(error="Could not create the table." + access.failure_detail()), 500
 
 
 @bp.route("/usersetting/download", methods=["GET"])
@@ -505,7 +513,7 @@ def download_usersetting():
         files, orphans = usersetting_export.build(access.operator_servers())
     except Exception:
         logger.exception("Usersetting export failed")
-        return jsonify(error="Could not build the files - see logs/omp.log."), 500
+        return jsonify(error="Could not build the files." + access.failure_detail()), 500
 
     if not files:
         return jsonify(error="No usersetting rows to export."), 404
@@ -524,6 +532,195 @@ def download_usersetting():
     return response
 
 
+XLSX_MIME = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+
+def _workbook_response(name: str, body: bytes, rows: int) -> Response:
+    response = Response(body, mimetype=XLSX_MIME)
+    response.headers["Content-Disposition"] = f'attachment; filename="{name}"'
+    # Read by the page so it can report what came back.
+    response.headers["X-OMP-Files"] = "1"
+    response.headers["X-OMP-Rows"] = str(rows)
+    response.headers["X-OMP-Skipped"] = ""
+    return response
+
+
+@bp.route("/setup/download/usersetting-compiled")
+@roles_required("admin", "superadmin")
+def download_usersetting_compiled():
+    """Every server's usersetting rows on one sheet, for review.
+
+    Not the platform's upload format - `download_usersetting` stays the way
+    back into the platform. Admin only: the sheet carries the API keys and
+    passwords of every server at once.
+    """
+    try:
+        name, body, rows = compiled_export.usersetting_workbook()
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 404
+    except Exception:
+        logger.exception("Compiled usersetting export failed")
+        return jsonify(error="Could not build the workbook." + access.failure_detail()), 500
+
+    return _workbook_response(name, body, rows)
+
+
+@bp.route("/setup/download/all-users-compiled")
+@roles_required("admin", "superadmin")
+def download_all_users_compiled():
+    """One day's all_users rows as a 'Main' sheet, ready to upload again."""
+    raw = (request.args.get("date") or "").strip()
+    try:
+        on_date = dt.date.fromisoformat(raw) if raw else dt.date.today()
+    except ValueError:
+        return jsonify(error="That is not a valid date."), 400
+
+    try:
+        name, body, rows = compiled_export.all_users_workbook(on_date)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 404
+    except Exception:
+        logger.exception("Compiled All Users export failed")
+        return jsonify(error="Could not build the workbook." + access.failure_detail()), 500
+
+    return _workbook_response(name, body, rows)
+
+
+def _cycle_step(default_cycle: str | None = None) -> tuple[str, str]:
+    """The cycle and step a download is for, from the query string."""
+    cycle = (request.args.get("cycle") or "").strip() or (
+        default_cycle or rules_io.scheduled_cycle(dt.date.today()) or rules_io.NIFTY
+    )
+    step = (request.args.get("dte") or "").strip() or rules_io.today_mode()
+    return cycle, step
+
+
+@bp.route("/setup/download/strategy-tags")
+@roles_required(*ALLOWED)
+def download_strategy_tags():
+    """One strategy tag CSV per server, in the platform's upload format.
+
+    Operators get this too - they cannot set the rules, but they do have to
+    hand the files to their own servers - so it is scoped the same way every
+    other operator view is.
+    """
+    raw = (request.args.get("date") or "").strip()
+    try:
+        on_date = dt.date.fromisoformat(raw) if raw else dt.date.today()
+    except ValueError:
+        return jsonify(error="That is not a valid date."), 400
+
+    cycle, step = _cycle_step()
+
+    try:
+        files, skipped = strategy_export.build(
+            on_date, cycle, step, access.operator_servers()
+        )
+    except strategy_export.StrategyTagError as exc:
+        return jsonify(error=str(exc)), 404
+    except Exception:
+        logger.exception("Strategy tag export failed")
+        return jsonify(error="Could not build the files." + access.failure_detail()), 500
+
+    if len(files) == 1:
+        name, body = files[0]
+        response = Response(body, mimetype="text/csv")
+    else:
+        name = strategy_export.archive_name(on_date)
+        response = Response(
+            strategy_export.zipped(files, on_date), mimetype="application/zip"
+        )
+
+    response.headers["Content-Disposition"] = f'attachment; filename="{name}"'
+    response.headers["X-OMP-Files"] = str(len(files))
+    response.headers["X-OMP-Skipped"] = ",".join(skipped)
+    return response
+
+
+@bp.route("/setup/download/strategy-compiled")
+@roles_required("admin", "superadmin")
+def download_strategy_compiled():
+    """One sheet per algo, one row per account, one column per tag.
+
+    Admin only: it spans every server at once, which is a view an operator is
+    deliberately not given.
+    """
+    raw = (request.args.get("date") or "").strip()
+    try:
+        on_date = dt.date.fromisoformat(raw) if raw else dt.date.today()
+    except ValueError:
+        return jsonify(error="That is not a valid date."), 400
+
+    cycle, step = _cycle_step()
+
+    try:
+        body, rows = strategy_export.compiled(on_date, cycle, step)
+    except strategy_export.StrategyTagError as exc:
+        return jsonify(error=str(exc)), 404
+    except Exception:
+        logger.exception("Compiled strategy tag export failed")
+        return jsonify(error="Could not build the workbook." + access.failure_detail()), 500
+
+    return _workbook_response(
+        strategy_export.compiled_filename(on_date), body, rows
+    )
+
+
+@bp.route("/controls/strategy-map", methods=["POST"])
+@roles_required("admin", "superadmin")
+def save_strategy_map():
+    """Replace the algo/cycle/step -> tags table."""
+    rows = _rows_from_form(("algo", "cycle", "dte", "tags"))
+    try:
+        rules_io.save_strategy_map(rows)
+        flash("Tag map saved.", "success")
+        return redirect(url_for("admin.controls"))
+    except ValueError as exc:
+        return _controls_page(strategy_map=rows, error_strategymap=str(exc))
+    except Exception:
+        logger.exception("Saving the strategy tag map failed")
+        flash("Could not save the tag map." + access.failure_detail(), "error")
+        return redirect(url_for("admin.controls"))
+
+
+@bp.route("/controls/strategy-bands", methods=["POST"])
+@roles_required("admin", "superadmin")
+def save_strategy_bands():
+    """Replace the 4DTE / 1DTE multiplier bands."""
+    rows = _rows_from_form(("step", "first_step", "width", "edge"))
+    try:
+        rules_io.save_strategy_bands(rows)
+        flash("Multiplier bands saved.", "success")
+        return redirect(url_for("admin.controls"))
+    except ValueError as exc:
+        return _controls_page(bands=rows, error_bands=str(exc))
+    except Exception:
+        logger.exception("Saving the strategy bands failed")
+        flash("Could not save the bands." + access.failure_detail(), "error")
+        return redirect(url_for("admin.controls"))
+
+
+@bp.route("/controls/common-series", methods=["POST"])
+@roles_required("admin", "superadmin")
+def save_common_series():
+    """Replace the A-series tag names and the SubCategories that join them."""
+    try:
+        rules_io.save_common_series(
+            request.form.get("tags", ""),
+            request.form.getlist("subcategories"),
+        )
+        flash("Common series saved.", "success")
+        return redirect(url_for("admin.controls"))
+    except ValueError as exc:
+        return _controls_page(error_common=str(exc))
+    except Exception:
+        logger.exception("Saving the common series failed")
+        flash("Could not save the common series." + access.failure_detail(), "error")
+        return redirect(url_for("admin.controls"))
+
+
 @bp.route("/controls/maxloss", methods=["POST"])
 @roles_required("admin", "superadmin")
 def save_maxloss_rules():
@@ -538,7 +735,7 @@ def save_maxloss_rules():
         return _controls_page(maxloss_rows=rows, error_maxloss=str(exc))
     except Exception:
         logger.exception("Saving the max loss rules failed")
-        flash("Could not save the max loss rules - see logs/omp.log.", "error")
+        flash("Could not save the max loss rules." + access.failure_detail(), "error")
         return redirect(url_for("admin.controls"))
 
 
@@ -559,7 +756,7 @@ def save_algo_maxloss():
         return _controls_page(algomaxloss_rows=rows, error_algomaxloss=str(exc))
     except Exception:
         logger.exception("Saving the algo max loss rules failed")
-        flash("Could not save them - see logs/omp.log.", "error")
+        flash("Could not save them." + access.failure_detail(), "error")
         return redirect(url_for("admin.controls"))
 
 
@@ -576,7 +773,7 @@ def save_subcategory_maxloss():
         return _controls_page(submaxloss_rows=rows, error_submaxloss=str(exc))
     except Exception:
         logger.exception("Saving the SubCategory max loss rules failed")
-        flash("Could not save them - see logs/omp.log.", "error")
+        flash("Could not save them." + access.failure_detail(), "error")
         return redirect(url_for("admin.controls"))
 
 
@@ -598,7 +795,7 @@ def save_today_mode():
         flash(str(exc), "error")
     except Exception:
         logger.exception("Saving today's DTE mode failed")
-        flash("Could not save the DTE mode - see logs/omp.log.", "error")
+        flash("Could not save the DTE mode." + access.failure_detail(), "error")
     return redirect(url_for("admin.controls"))
 
 
@@ -616,9 +813,24 @@ def setup():
         "admin/setup.html",
         today=dt.date.today().isoformat(),
         modes=rules_io.modes(),
+        cycles=rules_io.cycles(),
+        cycle_state=rules_io.cycle_state(),
         rounding=rules_io.rounding(),
         unavailable=unavailable,
+        # The compiled workbooks are admin only.
+        compiled=access.is_admin(),
+        # So the upload box can say what is already loaded.
+        maxloss_state=_maxloss_state(),
     )
+
+
+def _maxloss_state() -> dict:
+    """The stored Max Loss sheet, or an empty state if the table is missing."""
+    try:
+        return maxloss.sheet_state()
+    except Exception:
+        logger.exception("Could not read the Max Loss sheet state")
+        return {"date": None, "rows": 0}
 
 
 @bp.route("/setup/maxloss", methods=["POST"])
@@ -650,7 +862,7 @@ def upload_maxloss():
             flash(str(exc), "error")
         except Exception:
             logger.exception("Max Loss upload failed")
-            flash("Upload failed. Nothing was changed - see logs/omp.log.", "error")
+            flash("Upload failed. Nothing was changed." + access.failure_detail(), "error")
 
     return redirect(url_for("admin.setup"))
 
@@ -674,6 +886,7 @@ def setup_run():
             return jsonify(error="The previous-day date is not a valid date."), 400
 
     mode = payload.get("mode", "1DTE")
+    cycle = (payload.get("cycle") or "").strip() or None
     servers = access.operator_servers()
 
     try:
@@ -683,12 +896,13 @@ def setup_run():
             previous_date,
             rounding_basis=payload.get("rounding"),
             servers=servers,
+            cycle=cycle,
         )
     except ValueError as exc:
         return jsonify(error=str(exc)), 400
     except Exception:
         logger.exception("Allocation check failed")
-        return jsonify(error="Check failed - see logs/omp.log."), 500
+        return jsonify(error="Check failed." + access.failure_detail()), 500
 
     # Max loss is worked out from the allocations this run is about to write,
     # not the stored ones, so the two halves of a run cannot disagree.
@@ -700,7 +914,7 @@ def setup_run():
     try:
         result["maxloss"] = maxloss.plan(
             on_date, mode,
-            has_previous=previous_date is not None,
+            has_previous=rules_io.needs_previous(cycle, mode),
             servers=servers,
             proposed=proposed,
         )
@@ -709,7 +923,7 @@ def setup_run():
     except Exception:
         logger.exception("Max loss plan failed")
         result["maxloss"] = {
-            "error": "Max loss could not be worked out - see logs/omp.log.",
+            "error": "Max loss could not be worked out." + access.failure_detail(),
             "rows": [],
         }
 
@@ -745,33 +959,7 @@ def setup_apply():
     except Exception:
         db.session.rollback()
         logger.exception("Applying the setup run failed")
-        return jsonify(error="Apply failed - see logs/omp.log."), 500
-
-
-@bp.route("/controls/save-all-users", methods=["POST"])
-@roles_required("admin", "superadmin")
-def save_all_users():
-    """Store the All Users working set as the snapshot for a chosen date."""
-    raw = (request.form.get("date") or "").strip()
-    try:
-        on_date = dt.date.fromisoformat(raw)
-    except ValueError:
-        flash("Choose a date to save against.", "error")
-        return redirect(url_for("admin.controls"))
-
-    try:
-        result = all_users.save_snapshot(on_date)
-        message = f"Saved {result['saved']} row(s) against {result['date']}."
-        if result["replaced"]:
-            message += f" Replaced {result['replaced']} row(s) already held for that date."
-        flash(message, "success")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception:
-        logger.exception("Saving the all_users snapshot failed")
-        flash("Save failed - see logs/omp.log.", "error")
-
-    return redirect(url_for("admin.controls"))
+        return jsonify(error="Apply failed." + access.failure_detail()), 500
 
 
 @bp.route("/usersetting/reconcile", methods=["POST"])
@@ -785,7 +973,7 @@ def reconcile_usersetting():
         return jsonify(updated=derive.sync_usersetting_algo())
     except Exception:
         logger.exception("Deriving usersetting.algo failed")
-        return jsonify(error="Refresh failed - see logs/omp.log."), 500
+        return jsonify(error="Refresh failed." + access.failure_detail()), 500
 
 
 @bp.route("/all-users/reconcile", methods=["POST"])
@@ -799,7 +987,7 @@ def reconcile_all_users():
         return jsonify(all_users.reconcile_all())
     except Exception:
         logger.exception("Reconcile of all_users failed")
-        return jsonify(error="Reconcile failed - see logs/omp.log."), 500
+        return jsonify(error="Reconcile failed." + access.failure_detail()), 500
 
 
 @bp.route("/all-users/<row_id>/edit", methods=["GET", "POST"])
@@ -819,7 +1007,7 @@ def edit_user(row_id: str):
         except LookupError:
             abort(404)
         except Exception:
-            flash("Could not save the changes - see logs/omp.log.", "error")
+            flash("Could not save the changes." + access.failure_detail(), "error")
             return redirect(url_for("admin.edit_user", row_id=row_id))
 
         message = f"Saved {record['userId']}."
@@ -889,9 +1077,17 @@ def uploads():
                 flash(f"{spec.title}: choose the date this data belongs to.", "error")
                 return redirect(url_for("admin.uploads"))
 
+        # The companion table has its own permission. An operator may upload
+        # All Users but not Jainam, so the second sheet must not become a way
+        # round that.
+        companion_allowed = (
+            spec.companion is None or access.can_upload(spec.companion)
+        )
+
         try:
             report = import_sheet(
-                target, [(f.stream, f.filename) for f in uploads], extra
+                target, [(f.stream, f.filename) for f in uploads], extra,
+                load_companion=companion_allowed,
             )
             flash(
                 f"{spec.title}: {report.loaded} row(s) loaded"
@@ -901,12 +1097,21 @@ def uploads():
                 + ".",
                 "success",
             )
+            if report.companion:
+                extra_load = report.companion
+                flash(
+                    f"{extra_load['title']} was NOT updated - {extra_load['error']}"
+                    if extra_load["error"]
+                    else f"{extra_load['title']}: {extra_load['loaded']} row(s) "
+                         f"loaded from the same workbook.",
+                    "error" if extra_load["error"] else "success",
+                )
         except ValueError as exc:
             logger.warning("Upload rejected for '%s': %s", target, exc)
             flash(str(exc), "error")
         except Exception:
             logger.exception("Upload failed for target '%s'", target)
-            flash("Upload failed. Nothing was changed - see logs/omp.log.", "error")
+            flash("Upload failed. Nothing was changed." + access.failure_detail(), "error")
 
     return render_template(
         "admin/uploads.html",

@@ -10,6 +10,7 @@ import logging
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
+import access
 from auth import roles_required
 from core import logins
 
@@ -34,7 +35,7 @@ def msusers():
         except ValueError as exc:
             flash(str(exc), "error")
         except Exception:
-            flash("Could not add the user - see logs/omp.log.", "error")
+            flash("Could not add the user." + access.failure_detail(), "error")
         return redirect(url_for("superadmin.msusers"))
 
     return render_template(

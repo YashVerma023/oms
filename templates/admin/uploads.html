@@ -2,6 +2,8 @@
 
 {% block title %}Uploads &middot; OMP{% endblock %}
 
+{% block page_style %}soft{% endblock %}
+
 {% block content %}
   <div class="page-head">
     <div>
@@ -34,15 +36,35 @@
             <input type="date" name="date" value="{{ today }}" required>
           </label>
           <p class="upload-note">
-            Only this date's rows are replaced. Other dates are kept.
+            {% if spec.scope_column %}
+              Only this date's rows are replaced. Other dates are kept.
+            {% else %}
+              Every row is stamped with this date, whatever the sheet says.
+            {% endif %}
+          </p>
+        {% endif %}
+        {# `specs` is filtered by role, so an operator - who may not upload
+           Jainam - sees neither the note nor the companion load. #}
+        {% if spec.companion and spec.companion in specs %}
+          <p class="upload-note">
+            The <span class="mono">{{ specs[spec.companion].sheet }}</span> sheet
+            of the same workbook is loaded into
+            {{ specs[spec.companion].title }} at the same time, so the two
+            cannot drift apart.
           </p>
         {% endif %}
 
         <input class="file-input" type="file" name="file" required
+               aria-label="{{ spec.title }} file"
                accept="{{ spec.accept | join(',') }}"
                {% if spec.multiple %}multiple{% endif %}>
         {% if spec.multiple %}
-          <p class="upload-note">Select several files to load them together.</p>
+          <p class="upload-note">
+            Select several files to load them together.
+            {% if spec.prefer %}
+              An account in more than one file keeps its larger capital.
+            {% endif %}
+          </p>
         {% endif %}
         {% if spec.filename_columns %}
           <p class="upload-note">

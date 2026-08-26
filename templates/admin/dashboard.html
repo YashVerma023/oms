@@ -2,6 +2,8 @@
 
 {% block title %}Dashboard &middot; OMP{% endblock %}
 
+{% block page_style %}soft{% endblock %}
+
 {% block content %}
   <div class="page-head">
     <div>
@@ -29,24 +31,24 @@
   </div>
 
   <div class="toolbar">
-    <input class="search" id="pivotSearch" type="search"
+    <input class="search" id="pivotSearch" aria-label="Search the pivot" type="search"
            placeholder="Search..." autocomplete="off">
 
     {% if not locked %}
       <div class="tool date-pick" id="pivotDateWrap" title="Show a date">
-        <svg viewBox="0 0 24 24">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="3" y="5" width="18" height="16" rx="2"/>
           <path d="M3 10h18M8 3v4M16 3v4"/>
         </svg>
-        <input type="date" id="pivotDate" value="{{ today }}">
+        <input type="date" id="pivotDate" aria-label="Show a date" value="{{ today }}">
       </div>
     {% endif %}
 
     <button class="tool icon" id="btnPivotExport" type="button" title="Download CSV">
-      <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
     </button>
     <button class="tool icon" id="btnPivotReload" type="button" title="Refresh">
-      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
     </button>
   </div>
 
@@ -59,10 +61,10 @@
             <th class="col-expand">
               <div class="expand-tools">
                 <button class="caret" id="btnCollapse" type="button" title="Collapse all">
-                  <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
                 </button>
                 <button class="caret" id="btnExpand" type="button" title="Expand all">
-                  <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6M6 4l6 6 6-6"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6M6 4l6 6 6-6"/></svg>
                 </button>
               </div>
             </th>
@@ -72,7 +74,7 @@
               <th class="{{ col[2] }}">
                 <button class="th-sort" type="button" data-col="{{ col[0] }}">
                   <span>{{ col[1] }}</span>
-                  <svg class="sort-icon" viewBox="0 0 24 24">
+                  <svg class="sort-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 10l4-4 4 4M8 14l4 4 4-4"/>
                   </svg>
                 </button>
@@ -84,12 +86,14 @@
             <th class="col-expand"></th>
             <th>
               <input class="col-filter" type="search" data-col="name" data-type="text"
+                     aria-label="Filter by name"
                      autocomplete="off" placeholder="Search..."
                      title="Contains match.&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
             </th>
             {% for name in ['users', 'CC', 'MS'] %}
               <th>
                 <input class="col-filter" type="search" data-col="{{ name }}"
+                       aria-label="Filter by {{ name }}"
                        data-type="number" autocomplete="off"
                        placeholder="&gt;10; &lt;50; 10, 20"
                        title="Supports >10  <50  10-20  or a plain number.">

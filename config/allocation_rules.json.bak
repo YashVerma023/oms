@@ -192,12 +192,7 @@
       "action": "jexception"
     }
   },
-  "broker_rules": {
-    "EXCELSTOCK": {
-      "method": "capital_pct",
-      "pct": 100
-    }
-  },
+  "broker_rules": {},
   "fix": {
     "enabled": true,
     "column": "fix_cr",
@@ -266,7 +261,7 @@
     },
     "27": {
       "0DTE": {
-        "mstech": 3.0,
+        "mstech": 30.0,
         "stoxxo": 3.0
       },
       "1DTE": {
@@ -277,6 +272,237 @@
         "mstech": 30.0,
         "stoxxo": 3.0
       }
+    }
+  },
+  "cycles": {
+    "Nifty": [
+      "4DTE",
+      "1DTE",
+      "0DTE"
+    ],
+    "Sensex": [
+      "1DTE",
+      "0DTE"
+    ]
+  },
+  "weekday_cycles": {
+    "mon": "Nifty",
+    "tue": "Nifty",
+    "wed": "Sensex",
+    "thu": "Sensex",
+    "fri": "Nifty"
+  },
+  "strategy_tags": {
+    "_doc": "Which tags run for an algo on a cycle step, and how the multiplier is worked out. See core/strategy_tags.py.",
+    "map": [
+      {
+        "algo": "1",
+        "cycle": "Nifty",
+        "dte": "4DTE",
+        "tags": [
+          "NF4DTE"
+        ]
+      },
+      {
+        "algo": "1",
+        "cycle": "Nifty",
+        "dte": "1DTE",
+        "tags": [
+          "NF4DTE",
+          "NF1DTE"
+        ]
+      },
+      {
+        "algo": "1",
+        "cycle": "Nifty",
+        "dte": "0DTE",
+        "tags": [
+          "NF4DTE",
+          "NF1DTE",
+          "G1",
+          "G2",
+          "G3",
+          "G4",
+          "G5",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ]
+      },
+      {
+        "algo": "1",
+        "cycle": "Sensex",
+        "dte": "1DTE",
+        "tags": [
+          "SX1DTE"
+        ]
+      },
+      {
+        "algo": "1",
+        "cycle": "Sensex",
+        "dte": "0DTE",
+        "tags": [
+          "SX1DTE",
+          "G1",
+          "G2",
+          "G3",
+          "G4",
+          "G5",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ]
+      },
+      {
+        "algo": "7",
+        "cycle": "Nifty",
+        "dte": "4DTE",
+        "tags": [
+          "NF4DTE"
+        ]
+      },
+      {
+        "algo": "7",
+        "cycle": "Nifty",
+        "dte": "1DTE",
+        "tags": [
+          "NF4DTE",
+          "NF1DTE"
+        ]
+      },
+      {
+        "algo": "7",
+        "cycle": "Nifty",
+        "dte": "0DTE",
+        "tags": [
+          "NF4DTE",
+          "NF1DTE",
+          "B1",
+          "B2",
+          "B3",
+          "B4",
+          "B5",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ]
+      },
+      {
+        "algo": "7",
+        "cycle": "Sensex",
+        "dte": "1DTE",
+        "tags": [
+          "SX1DTE"
+        ]
+      },
+      {
+        "algo": "7",
+        "cycle": "Sensex",
+        "dte": "0DTE",
+        "tags": [
+          "SX1DTE",
+          "B1",
+          "B2",
+          "B3",
+          "B4",
+          "B5",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ]
+      },
+      {
+        "algo": "15",
+        "cycle": "Nifty",
+        "dte": "4DTE",
+        "tags": [
+          "NF4DTE"
+        ]
+      },
+      {
+        "algo": "15",
+        "cycle": "Nifty",
+        "dte": "1DTE",
+        "tags": [
+          "NF4DTE",
+          "NF1DTE"
+        ]
+      },
+      {
+        "algo": "15",
+        "cycle": "Nifty",
+        "dte": "0DTE",
+        "tags": [
+          "NF4DTE",
+          "NF1DTE",
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ]
+      },
+      {
+        "algo": "15",
+        "cycle": "Sensex",
+        "dte": "1DTE",
+        "tags": [
+          "SX1DTE"
+        ]
+      },
+      {
+        "algo": "15",
+        "cycle": "Sensex",
+        "dte": "0DTE",
+        "tags": [
+          "SX1DTE",
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5",
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5"
+        ]
+      }
+    ],
+    "bands": {
+      "4DTE": {
+        "first_step": 200000,
+        "width": 100000,
+        "edge": "up"
+      },
+      "1DTE": {
+        "first_step": 150000,
+        "width": 100000,
+        "edge": "up"
+      }
+    },
+    "common": {
+      "tags": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5"
+      ],
+      "subcategories": []
     }
   }
 }

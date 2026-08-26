@@ -46,6 +46,13 @@
 
     opts.filters.forEach(function (name) { self.choices[name] = new Set(); });
 
+    // Typed column filters, in the same boxes the data tables use, so an
+    // expression means the same thing here: >10, <50, 10-20, a bare space for
+    // blanks, "/" for anything with a value.
+    var typed = Array.prototype.slice.call(
+      $(opts.scopeId).querySelectorAll(".col-filter")
+    );
+
     function visible(row) {
       var needle = (self.search.value || "").trim().toLowerCase();
       if (needle) {
@@ -53,6 +60,15 @@
           .join(" ").toLowerCase();
         if (hay.indexOf(needle) === -1) return false;
       }
+
+      for (var i = 0; i < typed.length; i++) {
+        var input = typed[i];
+        if (!window.OMPFilter.cell(row[input.dataset.col], input.value,
+                                   input.dataset.type === "number")) {
+          return false;
+        }
+      }
+
       // OR within a column, AND across columns.
       return opts.filters.every(function (name) {
         var picked = self.choices[name];
@@ -148,6 +164,15 @@
       refreshApply();
     });
 
+    typed.forEach(function (input) {
+      input.addEventListener("input", function () {
+        self.render();
+        // The other table's warning column depends on this one's selection.
+        if (opts.onToggle) opts.onToggle();
+        refreshApply();
+      });
+    });
+
     return self;
   }
 
@@ -241,6 +266,18 @@
     }
   });
 
+  // A summary pill: the figure in its own element so a style can give it
+  // weight. textContent is unchanged, so anything reading these still sees
+  // "381 in scope".
+  function pill(id, value, label) {
+    var el = $(id);
+    el.textContent = "";
+    var figure = document.createElement("b");
+    figure.textContent = String(value);
+    el.appendChild(figure);
+    el.appendChild(document.createTextNode(" " + label));
+  }
+
   function refreshApply() {
     var a = alloc.selected().length;
     var m = maxlossPanel.selected().length;
@@ -258,11 +295,17 @@
   // ---------------------------------------------------------------------
   var lastDate = "";
 
+  // A run over 800 accounts takes seconds. It writes nothing, so stopping it
+  // is always safe - the page is left exactly as it was.
+  var inFlight = null;
+
   function post(url, body) {
+    inFlight = new AbortController();
     return fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: inFlight.signal
     }).then(function (r) {
       return r.json().then(function (payload) {
         if (!r.ok) throw new Error(payload.error || ("HTTP " + r.status));
@@ -271,17 +314,91 @@
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Cycle -> which steps exist, and whether this one carries forward
+  // ---------------------------------------------------------------------
+  function steps() {
+    var picked = $("cycle").options[$("cycle").selectedIndex];
+    return picked && picked.dataset.steps ? picked.dataset.steps.split(",") : [];
+  }
+
+  // Every step but the first of a cycle needs the day before.
+  function needsPrevious() {
+    var order = steps();
+    var at = order.indexOf($("mode").value);
+    return at > 0;
+  }
+
+  function syncCycle() {
+    var order = steps();
+    var mode = $("mode");
+
+    // Only this cycle's steps are offered; 4DTE does not exist in Sensex.
+    Array.prototype.forEach.call(mode.options, function (option) {
+      option.hidden = order.length > 0 && order.indexOf(option.value) === -1;
+    });
+    if (order.length && order.indexOf(mode.value) === -1) mode.value = order[0];
+
+    // Kept to one short phrase: a wrapping label drags its input out of line
+    // with the rest of the row. The full sentence is the field's tooltip.
+    var required = needsPrevious();
+    $("prevHint").textContent = required ? "required" : "not needed";
+    $("prevDate").required = required;
+    $("prevDate").disabled = !required && order.length > 0;
+    $("prevDate").title = required
+      ? mode.value + " is step " + (order.indexOf(mode.value) + 1) + " of the "
+        + $("cycle").value + " cycle, so it carries the day before forward."
+      : mode.value + " opens the " + $("cycle").value
+        + " cycle, so there is nothing to carry forward.";
+    if (!required) $("prevDate").value = "";
+  }
+
+  // The sheet carries its own date. Running a different day silently finds
+  // nothing, which is exactly the trap that cost a morning once already.
+  function checkSheetDate() {
+    var note = $("maxlossState");
+    if (!note) return;
+    var stored = note.dataset.sheetDate;
+    var wanted = $("checkDate").value;
+    var stale = stored && wanted && stored !== wanted;
+    note.classList.toggle("warn", !!stale);
+    if (stale && !note.dataset.original) note.dataset.original = note.textContent;
+    if (stale) {
+      note.textContent = "The Max Loss sheet is dated " + stored +
+        " but this run is for " + wanted +
+        ". Accounts that already ran will find nothing in it.";
+    } else if (note.dataset.original) {
+      note.textContent = note.dataset.original;
+      delete note.dataset.original;
+    }
+  }
+
+  $("checkDate").addEventListener("change", checkSheetDate);
+  checkSheetDate();
+
+  $("cycle").addEventListener("change", syncCycle);
+  $("mode").addEventListener("change", syncCycle);
+  syncCycle();
+
   function run() {
     var date = $("checkDate").value;
     if (!date) { note("Choose the date to check.", "warn"); return; }
 
-    $("btnRun").disabled = true;
-    note("Running the check...");
+    if (needsPrevious() && !$("prevDate").value) {
+      note($("mode").value + " is step " +
+           (steps().indexOf($("mode").value) + 1) + " of the " + $("cycle").value +
+           " cycle, so it needs the previous day's All Users date.", "warn");
+      return;
+    }
+
+    running(true);
+    note("Running the check. Nothing is written until you apply.");
 
     post(cfg.runUrl, {
       date: date,
       previous: $("prevDate").value,
       mode: $("mode").value,
+      cycle: $("cycle").value,
       rounding: $("rounding") ? $("rounding").value : null
     })
       .then(function (data) {
@@ -291,16 +408,16 @@
         var ml = data.maxloss || {};
         maxlossPanel.load(ml.rows || []);
 
-        $("pillScope").textContent = data.in_scope + " in scope";
-        $("pillMismatch").textContent = data.mismatch + " to change";
-        $("pillMatch").textContent = data.match + " already correct";
+        pill("pillScope", data.in_scope, "in scope");
+        pill("pillMismatch", data.mismatch, "to change");
+        pill("pillMatch", data.match, "already correct");
         $("pillReconcile").textContent = data.reconciled
           ? "reconciled" : "reconciliation failed";
         $("pillReconcile").className = "stat-pill " + (data.reconciled ? "ok" : "warn");
 
         var counts = ml.counts || {};
-        $("pillMaxloss").textContent = (counts.changed || 0) + " max loss to change";
-        $("pillMaxlossSkipped").textContent = (counts.skipped || 0) + " left alone";
+        pill("pillMaxloss", counts.changed || 0, "max loss to change");
+        pill("pillMaxlossSkipped", counts.skipped || 0, "left alone");
 
         $("summary").hidden = false;
         $("resultPanel").hidden = false;
@@ -318,11 +435,29 @@
       })
       .catch(function (err) {
         console.error(err);
+        if (err.name === "AbortError") {
+          note("Run stopped. Nothing was written.", "");
+          return;
+        }
         note(err.message, "warn");
         $("summary").hidden = true;
         $("resultPanel").hidden = true;
       })
-      .finally(function () { $("btnRun").disabled = false; });
+      .finally(function () { running(false); });
+  }
+
+  // The button reads "Run check" or "Stop", and only one of the two is ever
+  // true, so the label and the handler cannot disagree.
+  function running(active) {
+    var button = $("btnRun");
+    button.textContent = active ? "Stop" : "Run check";
+    button.classList.toggle("danger", active);
+    button.dataset.running = active ? "1" : "";
+  }
+
+  function stop() {
+    if (inFlight) inFlight.abort();
+    inFlight = null;
   }
 
   function apply() {
@@ -336,12 +471,22 @@
       maxlossPicked.length + " max loss(es) for " + lastDate + "?\n\n" +
       "This updates all_users.allocation, usersetting.Remarks, " +
       "all_users.max_loss and usersetting.Max Loss.";
-    if (orphans) {
-      message += "\n\n" + orphans + " max loss row(s) are based on an " +
-        "allocation change that is not ticked. They will be written anyway.";
-    }
-    if (!window.confirm(message)) return;
 
+    window.OMPConfirm({
+      title: "Apply setup changes",
+      body: message,
+      warning: orphans
+        ? orphans + " max loss row(s) rest on an allocation change that is not "
+          + "ticked. They will be written anyway."
+        : "",
+      confirmLabel: "Write changes",
+      danger: true
+    }).then(function (yes) {
+      if (yes) sendApply(allocPicked, maxlossPicked);
+    });
+  }
+
+  function sendApply(allocPicked, maxlossPicked) {
     $("btnApply").disabled = true;
     note("Applying...");
 
@@ -371,7 +516,10 @@
   // ---------------------------------------------------------------------
   // Wiring
   // ---------------------------------------------------------------------
-  $("btnRun").addEventListener("click", run);
+  $("btnRun").addEventListener("click", function () {
+    if ($("btnRun").dataset.running) { stop(); return; }
+    run();
+  });
   $("btnApply").addEventListener("click", apply);
 
   document.querySelectorAll("[data-tab]").forEach(function (button) {
@@ -389,6 +537,41 @@
   // no need to have run the check first.
   $("btnDownloadUsersetting").addEventListener("click", function () {
     window.OMPDownload(cfg.usersettingUrl, note, $("btnDownloadUsersetting"));
+  });
+
+  // Compiled workbooks, admin only - the buttons are not rendered otherwise.
+  function wireDownload(id, url) {
+    var button = $(id);
+    if (!button || !url) return;
+    button.addEventListener("click", function () {
+      window.OMPDownload(url(), note, button);
+    });
+  }
+
+  wireDownload("btnUsersettingCompiled", function () {
+    return cfg.usersettingCompiledUrl;
+  });
+
+  // The strategy tags depend on which step of which cycle is being set up, so
+  // both travel with the request rather than being guessed on the server.
+  function cycleQuery() {
+    return "?date=" + encodeURIComponent($("checkDate").value || "") +
+      "&cycle=" + encodeURIComponent($("cycle").value || "") +
+      "&dte=" + encodeURIComponent($("mode").value || "");
+  }
+
+  wireDownload("btnStrategyTags", function () {
+    return cfg.strategyTagsUrl + cycleQuery();
+  });
+
+  wireDownload("btnStrategyCompiled", function () {
+    return cfg.strategyCompiledUrl + cycleQuery();
+  });
+
+  // The date picked for the check is the day exported, so the two always agree.
+  wireDownload("btnAllUsersCompiled", function () {
+    return cfg.allUsersCompiledUrl +
+      "?date=" + encodeURIComponent($("checkDate").value || "");
   });
 
   function bulk(panel, value) {

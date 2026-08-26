@@ -4,6 +4,7 @@ Handles the three uploadable sources:
 
     all-users    All User.xlsx, 'Main' sheet   -> all_users     (replace)
     running      running-users.csv             -> running_users (append)
+                 several at once when users ran on different indices
     usersetting  USERSETTING.csv, header row 7 -> usersetting   (replace)
 
 Rules:
@@ -72,6 +73,25 @@ def server_from_filename(filename: str) -> dict[str, Any]:
     return {"server": match.group(1).upper()}
 
 
+def keep_higher_capital(
+    existing: dict[str, Any], candidate: dict[str, Any]
+) -> dict[str, Any]:
+    """Of two running rows for one account, keep the one with more capital.
+
+    An account trading two indices appears in both sheets. Capital drives
+    every allocation, so the larger figure is taken rather than whichever
+    file happened to be read last.
+    """
+    key = _param("capital")
+    have = existing.get(key)
+    new = candidate.get(key)
+    if new is None:
+        return existing
+    if have is None:
+        return candidate
+    return candidate if Decimal(str(new)) > Decimal(str(have)) else existing
+
+
 @dataclass
 class ImportSpec:
     table: str
@@ -101,6 +121,15 @@ class ImportSpec:
     # Rows whose column value matches one of these are dropped, e.g. the
     # trailing Total / Grand Total lines of a sheet. Matched case-insensitively.
     exclude_values: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # Optional: decides which of two rows sharing a primary key to keep.
+    # Without one the last occurrence wins.
+    prefer: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] | None = None
+    # Optional: stamped with one timestamp for the whole upload, so several
+    # files load as a single snapshot rather than one per file.
+    stamp_column: str | None = None
+    # Optional: another spec key loaded from the same file(s) straight after
+    # this one, for a workbook that carries two tables on separate sheets.
+    companion: str | None = None
 
     @property
     def pk_label(self) -> str:
@@ -129,6 +158,10 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         # date's rows are replaced so earlier days are kept.
         date_column="Date",
         scope_column="Date",
+        # The same workbook carries the Jainam sheet. Loading it here keeps the
+        # two in step - Jainam going stale behind All Users is invisible until
+        # a Setup run quietly misses every MSJ account.
+        companion="jainam",
     ),
     "jainam": ImportSpec(
         table="jainam",
@@ -140,6 +173,10 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         header_row=1,
         sheet="Jainam",
         accept=(".xlsx", ".xlsm"),
+        # The sheet's own Date column is ignored: it is often older than the
+        # day being set up, which would leave every Jainam account unmatched.
+        # The date chosen on the form wins, exactly as it does for All Users.
+        date_column="Date",
         # The sheet ends with a Total line that is not an account.
         exclude_values={"UserID": ("total", "grand total", "grandtotal")},
     ),
@@ -175,6 +212,15 @@ IMPORT_SPECS: dict[str, ImportSpec] = {
         mode="append",
         pk=("userId",),
         header_row=1,
+        # Users can run on different indices, one sheet each. All the files
+        # of a morning load together as one snapshot.
+        multiple=True,
+        prefer=keep_higher_capital,
+        # One `imported_at` for the whole upload. MySQL's DEFAULT
+        # CURRENT_TIMESTAMP is per statement and the insert is chunked, so
+        # without this a large upload straddling a second would split into
+        # two snapshots and the check would see only the last chunk.
+        stamp_column="imported_at",
     ),
     "usersetting": ImportSpec(
         table="usersetting",
@@ -214,6 +260,8 @@ class ImportReport:
     matched_columns: list[str] = field(default_factory=list)
     ignored_headers: list[str] = field(default_factory=list)
     files: list[dict[str, Any]] = field(default_factory=list)
+    # Set when the spec loads a second table from the same workbook.
+    companion: dict[str, Any] | None = None
 
     def note(self, message: str) -> None:
         # Cap the list so a badly broken file cannot flood the page or the log.
@@ -541,6 +589,7 @@ def import_sheet(
     target: str,
     uploads: list[tuple[BinaryIO, str]],
     extra: dict[str, Any] | None = None,
+    load_companion: bool = True,
 ) -> ImportReport:
     """Parse one or more uploaded sheets and load them into the target table.
 
@@ -548,6 +597,11 @@ def import_sheet(
     replace load swaps in the combined contents of every file at once rather
     than each file wiping the previous one. Within a replace load the last
     occurrence of a primary key wins, across files as well as within one.
+
+    Args:
+        load_companion: pass False to load only this spec's own sheet. The
+            caller uses it to enforce permissions - an operator may upload All
+            Users but not Jainam, so the companion must not become a way in.
 
     Raises:
         KeyError: unknown target.
@@ -560,6 +614,14 @@ def import_sheet(
     columns = _target_columns(spec.table)
     if not columns:
         raise ValueError(f"Table '{spec.table}' does not exist - restart the app to provision it")
+
+    # A workbook can carry two tables on separate sheets. The bytes are kept
+    # so the companion can be parsed from the same file after this one - the
+    # xlsx reader consumes the stream.
+    buffered: list[tuple[bytes, str]] = []
+    if spec.companion and load_companion:
+        buffered = [(stream.read(), name) for stream, name in uploads]
+        uploads = [(io.BytesIO(data), name) for data, name in buffered]
 
     matched: list[tuple[dict[str, Any], int]] = []
     collected: list[tuple[str, str, dict[str, Any]]] = []   # (file, key, record)
@@ -580,19 +642,40 @@ def import_sheet(
     # a primary key wins, whether the repeat is inside one file or across files.
     winners: dict[str, tuple[str, dict[str, Any]]] = {}
     for filename, key, record in collected:
-        if key in winners:
-            report.skipped += 1
-            previous = winners[key][0]
+        if key not in winners:
+            winners[key] = (filename, record)
+            continue
+
+        report.skipped += 1
+        shown = key.replace(chr(31), " + ")
+        previous_file, previous = winners[key]
+
+        if spec.prefer is not None:
+            # The spec decides, e.g. running keeps the larger capital.
+            chosen = spec.prefer(previous, record)
+            kept_file = filename if chosen is record else previous_file
             report.note(
-                f"Duplicate {spec.pk_label} '{key.replace(chr(31), ' + ')}' - kept the row "
-                f"from '{filename}', dropped the one from '{previous}'"
-                if previous != filename
-                else f"Duplicate {spec.pk_label} '{key.replace(chr(31), ' + ')}' "
-                     f"in '{filename}' - kept the last row"
+                f"{spec.pk_label} '{shown}' is in more than one file - "
+                f"kept the row from '{kept_file}'"
             )
+            winners[key] = (kept_file, chosen)
+            continue
+
+        report.note(
+            f"Duplicate {spec.pk_label} '{shown}' - kept the row "
+            f"from '{filename}', dropped the one from '{previous_file}'"
+            if previous_file != filename
+            else f"Duplicate {spec.pk_label} '{shown}' "
+                 f"in '{filename}' - kept the last row"
+        )
         winners[key] = (filename, record)
 
     records = [record for _, record in winners.values()]
+
+    if spec.stamp_column:
+        stamp = dt.datetime.now().replace(microsecond=0)
+        for record in records:
+            record[_param(spec.stamp_column)] = stamp
 
     report.matched_columns = [c["name"] for c, _ in matched]
     _write(spec, matched, records, report)
@@ -602,11 +685,49 @@ def import_sheet(
         if derived:
             report.note(f"Derived columns updated on {derived} row(s) after load.")
 
+    if buffered:
+        _load_companion(spec, buffered, extra or {}, report)
+
     logger.info(
         "Import '%s' from %s file(s) [%s]: %s loaded, %s skipped, %s columns matched",
         target, len(uploads), report.filename, report.loaded, report.skipped, len(matched),
     )
     return report
+
+
+def _load_companion(
+    spec: ImportSpec,
+    buffered: list[tuple[bytes, str]],
+    extra: dict[str, Any],
+    report: ImportReport,
+) -> None:
+    """Load the second table the workbook carries, and say what happened.
+
+    The primary load has already committed, so a failure here leaves it in
+    place. That is reported rather than swallowed: silently skipping is what
+    let Jainam drift behind All Users in the first place.
+    """
+    other = IMPORT_SPECS[spec.companion]
+    try:
+        result = import_sheet(
+            spec.companion,
+            [(io.BytesIO(data), name) for data, name in buffered],
+            extra,
+        )
+    except ValueError as exc:
+        logger.warning("Companion load '%s' skipped: %s", spec.companion, exc)
+        report.note(f"{other.title} was NOT updated - {exc}")
+        report.companion = {"title": other.title, "loaded": 0, "error": str(exc)}
+        return
+
+    report.note(
+        f"{other.title}: {result.loaded} row(s) loaded from the '{other.sheet}' "
+        f"sheet of the same workbook"
+        + (f", {result.skipped} skipped" if result.skipped else "")
+    )
+    report.companion = {
+        "title": other.title, "loaded": result.loaded, "error": None,
+    }
 
 
 def _excluded(
@@ -646,6 +767,12 @@ def _write(
     # param -> column map from the table itself so every one is covered.
     names = sorted(records[0].keys())
     reverse = {_param(c["name"]): c["name"] for c in _target_columns(spec.table)}
+
+    # `_target_columns` drops the auto columns so a sheet cannot write them.
+    # A stamp column is one of those, written by us rather than by the sheet,
+    # so it is added back here and nowhere else.
+    if spec.stamp_column:
+        reverse[_param(spec.stamp_column)] = spec.stamp_column
 
     unknown = [p for p in names if p not in reverse]
     if unknown:

@@ -1,22 +1,56 @@
 /* OMP theme. Dark is the default; [data-theme="light"] overrides the palette. */
 
+/* A cool slate ramp, hue held at ~222 all the way down so the greys read blue
+   rather than brown. Each step is a clear lift on the one below - the old set
+   put bg, surface and surface-2 within a few points of each other, which is
+   why a card never looked like it sat on anything. */
 :root,
 [data-theme="dark"] {
-  --bg: #0b1017;
-  --surface: #111a24;
-  --surface-2: #18232f;
-  --chip: #26313f;
-  --border: #1f2c3a;
-  --text: #e6edf5;
-  --muted: #8494a6;
-  --accent: #4a9eff;
-  --pos: #4ade80;
-  --neg: #f2555a;
-  --danger: #a91f28;
-  --danger-hover: #c0272f;
-  --nav-bg: #0e1620;
-  --shadow: 0 14px 40px rgba(0, 0, 0, .55);
+  --bg: #10141c;
+  --surface: #171d27;
+  --surface-2: #1f2733;
+  --chip: #2a3441;
+  --border: #26303d;
+  --text: #e4e9f2;
+  --muted: #8b98ad;
+  /* Softened from #4a9eff: the old one glowed against a near-black page. */
+  --accent: #5f9df7;
+  /* Teal-leaning rather than lime - it sits in the same cool family as
+     everything else instead of jumping out of it. */
+  --pos: #43d1a0;
+  --neg: #f5757a;
+  --danger: #9e242c;
+  --danger-hover: #b82b34;
+  /* The bar recedes below the page rather than floating above it. */
+  --nav-bg: #0c1016;
+  --shadow: 0 16px 44px rgba(3, 6, 12, .62);
+  /* Washes of the three status hues, used behind chips, pills and flashes. */
+  --pos-soft: rgba(67, 209, 160, .15);
+  --neg-soft: rgba(245, 117, 122, .15);
+  --accent-soft: rgba(95, 157, 247, .16);
 }
+
+/* Layout scale. Not per-theme: sizes do not change with the palette. Anything
+   new pulls from here instead of inventing another pixel value. */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 22px;
+  --space-6: 32px;
+  --radius: 7px;
+  --radius-lg: 10px;
+  /* Every button, input and select is this tall, so a row of mixed controls
+     lines up without per-element padding fiddling. */
+  --control-h: 36px;
+  /* Touch targets below the tablet breakpoint. */
+  --control-h-touch: 44px;
+  --ring: 0 0 0 3px rgba(95, 157, 247, .40);
+  --motion: 120ms;
+}
+
+[data-theme="light"] { --ring: 0 0 0 3px rgba(31, 111, 235, .28); }
 
 [data-theme="light"] {
   --bg: #f6f8fa;
@@ -33,6 +67,9 @@
   --danger-hover: #98191f;
   --nav-bg: #ffffff;
   --shadow: 0 12px 32px rgba(15, 28, 43, .12);
+  --pos-soft: rgba(22, 163, 74, .12);
+  --neg-soft: rgba(217, 45, 56, .11);
+  --accent-soft: rgba(31, 111, 235, .12);
 }
 
 * { box-sizing: border-box; }
@@ -265,6 +302,7 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   font-size: 13.5px;
 }
 
+.search:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .search:focus { outline: none; border-color: var(--accent); }
 .search::placeholder { color: var(--muted); }
 
@@ -392,6 +430,7 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   font-size: 12.5px;
 }
 
+.col-filter:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .col-filter:focus { outline: none; border-color: var(--accent); }
 .col-filter::placeholder { color: var(--muted); opacity: .8; }
 
@@ -551,6 +590,14 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 
+/* Grid cells stretch to the tallest in the row, so pinning the control to the
+   bottom of its cell keeps every input on one line even when one label wraps
+   onto two. Without this a long label drags its own input out of alignment.
+   Only the control moves - a cell holding a note keeps its natural flow. */
+.field-grid .field > input,
+.field-grid .field > select,
+.field-grid .field > textarea { margin-top: auto; }
+
 .field-label {
   font-size: 12px;
   font-weight: 600;
@@ -580,6 +627,13 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   background: var(--surface);
 }
 
+.field input:focus-visible,
+.field select:focus-visible { box-shadow: var(--ring); }
+
+/* A rejected value has to look different from a focused one. */
+.field input:user-invalid,
+.field input[aria-invalid="true"] { border-color: var(--neg); }
+
 .field.readonly input {
   background: var(--bg);
   color: var(--muted);
@@ -590,7 +644,7 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   margin: 18px 0 0;
   padding: 11px 14px;
   border-radius: 7px;
-  background: rgba(242, 85, 90, .12);
+  background: var(--neg-soft);
   color: var(--neg);
   font-size: 13px;
 }
@@ -611,7 +665,14 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   justify-content: flex-end;
   gap: 12px;
   margin-top: 22px;
+  flex-wrap: wrap;
 }
+
+/* Setup has two kinds of action: the ones that change data and the ones that
+   only read it. Splitting them stops five equal-looking buttons in a row. */
+.action-split { justify-content: space-between; align-items: center; }
+.action-group { display: flex; gap: 12px; flex-wrap: wrap; }
+.action-group.reads { margin-left: auto; }
 
 .edit-actions .btn-primary { width: auto; margin-top: 0; }
 .edit-actions .tool { text-decoration: none; }
@@ -903,7 +964,8 @@ button.subtab {
   border-top: 1px solid var(--border);
 }
 
-.maxloss-upload .field { flex: 1; min-width: 240px; margin: 0; }
+/* Capped: a file input stretched across a wide screen is a grey slab. */
+.maxloss-upload .field { flex: 0 1 460px; min-width: 240px; margin: 0; }
 .maxloss-upload .file-input { margin-bottom: 0; }
 .maxloss-upload .upload-note { flex-basis: 100%; margin: 0; }
 
@@ -1078,6 +1140,7 @@ button.subtab {
   tab-size: 2;
 }
 
+.rules-editor:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .rules-editor:focus { outline: none; border-color: var(--accent); }
 
 .summary-row {
@@ -1142,8 +1205,8 @@ button.subtab {
   font-weight: 600;
 }
 
-.stat-pill.ok { background: rgba(74, 222, 128, .14); color: var(--pos); }
-.stat-pill.warn { background: rgba(242, 85, 90, .14); color: var(--neg); }
+.stat-pill.ok { background: var(--pos-soft); color: var(--pos); }
+.stat-pill.warn { background: var(--neg-soft); color: var(--neg); }
 
 .report-block { margin-top: 16px; }
 .report-block h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
@@ -1210,7 +1273,7 @@ button.subtab {
 .login-card input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(74, 158, 255, .15);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 /* Scoped to submit only - a bare `button` selector also caught the toggle. */
@@ -1240,8 +1303,8 @@ button.subtab {
   font-size: 13px;
 }
 
-.flash-error { background: rgba(248, 113, 113, .13); color: var(--neg); }
-.flash-success { background: rgba(74, 222, 128, .13); color: var(--pos); }
+.flash-error { background: var(--neg-soft); color: var(--neg); }
+.flash-success { background: var(--pos-soft); color: var(--pos); }
 
 /* ---------- Responsive ---------- */
 
@@ -1362,7 +1425,7 @@ button.subtab {
   }
 
   .nav-item.active {
-    background: rgba(242, 85, 90, .12);
+    background: var(--neg-soft);
     text-decoration: none;
   }
 
@@ -1474,3 +1537,746 @@ button.subtab {
 }
 
 .pivot .kind-algo td { border-bottom-color: var(--accent); }
+
+/* ==========================================================================
+   Interaction layer
+   Focus, hover, control sizing, touch targets and motion. Appended last so
+   these win over the component rules above without raising specificity.
+   ========================================================================== */
+
+/* Nothing focusable is left without a visible ring. Keyboard-only: a mouse
+   click never shows it. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* Skip link: first in the tab order, invisible until focused. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 0 0 var(--radius) 0;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.skip-link:focus { left: 0; }
+
+/* One height for every control, so a toolbar row lines up on its own. */
+.tool,
+.btn-primary,
+.search,
+.choice-btn,
+.date-pick,
+.field input,
+.field select { min-height: var(--control-h); }
+
+/* Pressed state: every clickable thing acknowledges the click. */
+.tool:active:not(:disabled),
+.btn-primary:active:not(:disabled),
+.subtab:active { transform: translateY(1px); }
+
+.tool,
+.btn-primary,
+.nav-item,
+.subtab,
+.choice-btn,
+.menu-item { transition: background var(--motion), border-color var(--motion), color var(--motion); }
+
+.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; filter: none; }
+.nav-item:hover { color: var(--text); }
+.choice-btn:hover { border-color: var(--accent); }
+
+/* Rows the pointer is over, and rows that are selected, must not look alike. */
+.grid tbody tr.selected td { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--accent); }
+
+/* A table that is still loading keeps its height, so pagination does not make
+   the page jump under the pointer. */
+.table-scroll { min-height: 180px; }
+
+/* Announced regions. Visual style unchanged - this is for screen readers. */
+[aria-live] { min-height: 1em; }
+
+/* ---------- Dialog: replaces window.confirm ---------- */
+
+.omp-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.omp-dialog::backdrop { background: rgba(0, 0, 0, .5); }
+.omp-dialog h2 { margin: 0; padding: 16px 20px; font-size: 15px; border-bottom: 1px solid var(--border); }
+.omp-dialog .omp-dialog-body { padding: 16px 20px; font-size: 13.5px; line-height: 1.55; white-space: pre-line; }
+.omp-dialog .omp-dialog-warn { margin-top: 12px; color: var(--neg); }
+.omp-dialog .omp-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Dismissible flashes ---------- */
+
+.flash { display: flex; align-items: flex-start; gap: var(--space-3); }
+.flash-text { flex: 1; }
+
+.flash-close {
+  flex-shrink: 0;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: .6;
+}
+
+.flash-close:hover { opacity: 1; }
+
+/* ---------- Search with a clear button ---------- */
+
+.search-wrap { position: relative; flex: 1; display: flex; }
+.search-wrap .search { width: 100%; padding-right: 68px; }
+
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.search-clear:hover { color: var(--text); }
+.search-count {
+  position: absolute;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 11.5px;
+  pointer-events: none;
+}
+
+/* ---------- Breadcrumbs ---------- */
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.crumbs a { color: var(--muted); text-decoration: none; }
+.crumbs a:hover { color: var(--accent); }
+.crumbs span[aria-current] { color: var(--text); }
+
+/* ---------- Motion, opt-in ---------- */
+
+.fade-in { animation: omp-fade var(--motion) ease-out; }
+
+@keyframes omp-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* The OS setting is the only control: there is no in-app switch, because a
+   preference the operating system already owns does not need a second home. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---------- Touch ---------- */
+
+@media (max-width: 820px) {
+  .tool,
+  .btn-primary,
+  .search,
+  .choice-btn,
+  .field input,
+  .field select,
+  .table-row-actions .tool { min-height: var(--control-h-touch); }
+
+  /* The first column stays put while the rest scrolls sideways. */
+  .grid tbody td:first-child,
+  .grid thead th:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--surface);
+    z-index: 1;
+  }
+
+  .grid thead th:first-child { z-index: 3; background: var(--surface-2); }
+  .table-scroll { max-height: calc(100vh - 220px); }
+}
+
+@media (max-width: 560px) {
+  .field-grid { grid-template-columns: 1fr; }
+  .edit-actions.action-split { flex-direction: column; align-items: stretch; }
+  .action-group { justify-content: stretch; }
+  .action-group .tool, .action-group .btn-primary { flex: 1; justify-content: center; }
+  .crumbs { flex-wrap: wrap; }
+}
+
+/* ==========================================================================
+   "Soft" page treatment
+   Applied only where a page sets `{% block page_style %}soft{% endblock %}`,
+   so it can be judged on one page before it spreads. Shape, space and weight
+   only - the palette is unchanged, so the navbar above it still matches.
+   Delete this block and the page's `page_style` block to revert.
+   ========================================================================== */
+
+[data-style="soft"] {
+  --soft-radius: 14px;
+  --soft-card: 0 1px 2px rgba(15, 28, 43, .05), 0 1px 8px rgba(15, 28, 43, .04);
+  --soft-gap: 18px;
+}
+
+/* Dark mode gets separation from contrast, not from shadow: a shadow on a dark
+   surface reads as smudge. */
+[data-theme="dark"] [data-style="soft"] {
+  --soft-card: 0 0 0 1px rgba(255, 255, 255, .04);
+}
+
+/* ---------- Page head ---------- */
+
+[data-style="soft"] .page-head h1 {
+  font-size: 22px;
+  letter-spacing: -.01em;
+}
+
+[data-style="soft"] .page-head .subtitle {
+  max-width: 68ch;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ---------- Surfaces ---------- */
+
+[data-style="soft"] .edit-form,
+[data-style="soft"] .panel {
+  border: 0;
+  border-radius: var(--soft-radius);
+  background: var(--surface);
+  box-shadow: var(--soft-card);
+}
+
+[data-style="soft"] .edit-form { padding: var(--space-5) 24px; }
+
+/* ---------- Fields ---------- */
+
+[data-style="soft"] .field-grid { gap: var(--soft-gap) 20px; }
+
+[data-style="soft"] .field-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+
+[data-style="soft"] .field input,
+[data-style="soft"] .field select {
+  border-radius: 10px;
+  background: var(--bg);
+  border-color: transparent;
+}
+
+[data-style="soft"] .field input:hover,
+[data-style="soft"] .field select:hover { border-color: var(--border); }
+
+[data-style="soft"] .field input:focus,
+[data-style="soft"] .field select:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+[data-style="soft"] .field input:disabled { opacity: .55; }
+
+/* ---------- Buttons: pills ---------- */
+
+[data-style="soft"] .tool,
+[data-style="soft"] .btn-primary,
+[data-style="soft"] .search {
+  border-radius: 999px;
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+[data-style="soft"] .tool {
+  background: var(--bg);
+  border-color: transparent;
+}
+
+[data-style="soft"] .tool:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+[data-style="soft"] .btn-primary { box-shadow: none; }
+
+/* ---------- Summary: metric cards, not pills ---------- */
+
+[data-style="soft"] .summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-5) 0;
+}
+
+[data-style="soft"] .stat-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 13px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--soft-card);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 400;
+  text-align: left;
+}
+
+/* The figure, split out by setup.js so it can carry its own weight. */
+[data-style="soft"] .stat-pill b {
+  order: -1;
+  color: var(--text);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+[data-style="soft"] .stat-pill.warn b { color: var(--neg); }
+[data-style="soft"] .stat-pill.ok b { color: var(--pos); }
+
+/* ---------- Tabs: pills ---------- */
+
+[data-style="soft"] .subtabs { border-bottom: 0; gap: var(--space-2); }
+
+[data-style="soft"] .subtab {
+  border-radius: 999px;
+  border-bottom: 0;
+  margin-bottom: 0;
+  padding: 8px 16px;
+}
+
+[data-style="soft"] .subtab.active {
+  background: var(--surface);
+  box-shadow: var(--soft-card);
+  border-bottom: 0;
+}
+
+[data-style="soft"] .subtab .chip {
+  background: var(--bg);
+  border-radius: 999px;
+}
+
+/* ---------- Table: lighter rules, more room ---------- */
+
+[data-style="soft"] .grid th,
+[data-style="soft"] .grid td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bg);
+}
+
+[data-style="soft"] .grid thead th {
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The header label and its filter belong to each other, so the header row is
+   given an exact height and the filter row is offset by exactly that - a
+   hard-coded 42px no longer matched once the padding grew, which left the two
+   rows overlapping when the table scrolled. */
+[data-style="soft"] .grid thead .head-row th {
+  height: 44px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 0;
+}
+
+[data-style="soft"] .grid thead .filter-row th {
+  top: 44px;
+  background: var(--surface);
+  /* Was 0 above and 10 below, which read as the filter being stuck to its
+     header and adrift from the data. Even space on both sides. */
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Money reads as a column when the digits line up. */
+[data-style="soft"] .grid td.num { font-variant-numeric: tabular-nums; }
+
+/* The pivot trades room for rows on purpose; it keeps its own density. */
+[data-style="soft"] .grid.pivot th,
+[data-style="soft"] .grid.pivot td { padding: 7px 14px; }
+
+[data-style="soft"] .grid tbody tr:hover td { background: var(--bg); }
+
+/* ---------- Status chips: filled pills ---------- */
+
+[data-style="soft"] .chip {
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-weight: 500;
+}
+
+[data-style="soft"] .chip.pos {
+  background: var(--pos-soft);
+  color: var(--pos);
+}
+
+[data-style="soft"] .chip.neg {
+  background: var(--neg-soft);
+  color: var(--neg);
+}
+
+/* ---------- Toolbar inside a panel ---------- */
+
+[data-style="soft"] .panel .toolbar { margin: var(--space-4) !important; }
+
+[data-style="soft"] .choice-btn {
+  border-radius: 999px;
+  background: var(--bg);
+  border-color: transparent;
+}
+
+/* ---------- Upload strip ---------- */
+
+[data-style="soft"] .maxloss-upload {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-top: 0;
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+/* The base rule pulls this up with `margin-top: -4px` so it tucks under a form
+   field. Under a button row, a panel or a table that reads as the caption
+   touching the thing above it. Soft fields carry their own gap, so the pull is
+   dropped everywhere and given back only where it is wanted. */
+[data-style="soft"] .upload-note { margin: 6px 0 12px; font-size: 12px; }
+[data-style="soft"] .edit-actions + .upload-note { margin-top: 14px; }
+[data-style="soft"] .field + .upload-note,
+[data-style="soft"] .field-grid + .upload-note { margin-top: 2px; }
+
+/* ---------- Tinted buttons ----------
+   The tint is a family, not decoration: blue computes, teal/violet/amber are
+   the three downloads, red stops. Each keeps its own hue so a glance finds the
+   right button in a row of five. */
+
+[data-style="soft"] .tool.tint-blue { --tint: 31, 111, 235; --tint-lit: 122, 178, 255; }
+[data-style="soft"] .tool.tint-teal { --tint: 13, 148, 122; --tint-lit: 94, 220, 192; }
+[data-style="soft"] .tool.tint-violet { --tint: 109, 84, 214; --tint-lit: 168, 148, 255; }
+[data-style="soft"] .tool.tint-amber { --tint: 176, 108, 16; --tint-lit: 240, 176, 82; }
+[data-style="soft"] .tool.tint-green { --tint: 21, 128, 61; --tint-lit: 110, 231, 168; }
+[data-style="soft"] .tool.tint-pink { --tint: 173, 53, 108; --tint-lit: 244, 143, 189; }
+[data-style="soft"] .tool.danger { --tint: 200, 42, 50; --tint-lit: 255, 130, 134; }
+
+[data-style="soft"] .tool.tint-blue,
+[data-style="soft"] .tool.tint-teal,
+[data-style="soft"] .tool.tint-violet,
+[data-style="soft"] .tool.tint-amber,
+[data-style="soft"] .tool.tint-green,
+[data-style="soft"] .tool.tint-pink,
+[data-style="soft"] .tool.danger {
+  background: rgba(var(--tint), .10);
+  color: rgb(var(--tint));
+  border-color: transparent;
+  font-weight: 500;
+}
+
+[data-style="soft"] .tool.tint-blue svg,
+[data-style="soft"] .tool.tint-teal svg,
+[data-style="soft"] .tool.tint-violet svg,
+[data-style="soft"] .tool.tint-amber svg { opacity: .85; }
+
+[data-style="soft"] .tool.tint-blue:hover:not(:disabled),
+[data-style="soft"] .tool.tint-teal:hover:not(:disabled),
+[data-style="soft"] .tool.tint-violet:hover:not(:disabled),
+[data-style="soft"] .tool.tint-amber:hover:not(:disabled),
+[data-style="soft"] .tool.tint-green,
+[data-style="soft"] .tool.tint-pink,
+[data-style="soft"] .tool.danger:hover:not(:disabled) {
+  background: rgba(var(--tint), .17);
+  border-color: rgba(var(--tint), .32);
+  color: rgb(var(--tint));
+}
+
+/* On a dark surface a 10% wash of a dark hue disappears, and the dark text on
+   it is unreadable - so both are lifted. */
+[data-theme="dark"] [data-style="soft"] .tool.tint-blue,
+[data-theme="dark"] [data-style="soft"] .tool.tint-teal,
+[data-theme="dark"] [data-style="soft"] .tool.tint-violet,
+[data-theme="dark"] [data-style="soft"] .tool.tint-amber,
+[data-theme="dark"] [data-style="soft"] .tool.tint-green,
+[data-theme="dark"] [data-style="soft"] .tool.tint-pink,
+[data-theme="dark"] [data-style="soft"] .tool.danger {
+  background: rgba(var(--tint-lit), .13);
+  color: rgb(var(--tint-lit));
+}
+
+[data-theme="dark"] [data-style="soft"] .tool.tint-blue:hover:not(:disabled),
+[data-theme="dark"] [data-style="soft"] .tool.tint-teal:hover:not(:disabled),
+[data-theme="dark"] [data-style="soft"] .tool.tint-violet:hover:not(:disabled),
+[data-theme="dark"] [data-style="soft"] .tool.tint-amber:hover:not(:disabled),
+[data-theme="dark"] [data-style="soft"] .tool.tint-green,
+[data-theme="dark"] [data-style="soft"] .tool.tint-pink,
+[data-theme="dark"] [data-style="soft"] .tool.danger:hover:not(:disabled) {
+  background: rgba(var(--tint-lit), .22);
+  border-color: rgba(var(--tint-lit), .38);
+  color: rgb(var(--tint-lit));
+}
+
+/* Stop is a state, not a third button: while a run is in flight the blue
+   compute button turns red, and `danger` outranks the blue above it. */
+[data-style="soft"] .tool.tint-blue.danger { --tint: 200, 42, 50; --tint-lit: 255, 130, 134; }
+
+/* An icon-only button has no label to carry the tint, so it needs a little
+   more of it to read as coloured rather than as a rendering artefact. */
+[data-style="soft"] .tool.icon.tint-blue,
+[data-style="soft"] .tool.icon.tint-teal,
+[data-style="soft"] .tool.icon.tint-violet,
+[data-style="soft"] .tool.icon.tint-amber { background: rgba(var(--tint), .14); }
+
+[data-theme="dark"] [data-style="soft"] .tool.icon.tint-blue,
+[data-theme="dark"] [data-style="soft"] .tool.icon.tint-teal,
+[data-theme="dark"] [data-style="soft"] .tool.icon.tint-violet,
+[data-theme="dark"] [data-style="soft"] .tool.icon.tint-amber { background: rgba(var(--tint-lit), .18); }
+
+/* ---------- Dashboard: roomier data blocks ----------
+   The pivot chip is the unit of the page - every figure sits inside one - so
+   it carries the extra room rather than the cell around it. */
+
+[data-style="soft"] .grid.pivot th,
+[data-style="soft"] .grid.pivot td { padding: 9px 12px; }
+
+[data-style="soft"] .pivot-name,
+[data-style="soft"] .pivot td.num .chip {
+  padding: 11px 18px;
+  border-radius: 10px;
+  font-size: 13.5px;
+}
+
+[data-style="soft"] .pivot thead th {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+/* ---------- Rules tables: fully ruled, centred ----------
+   Config, not a data feed. Every cell gets a border so a row of numbers reads
+   as a grid, and both header and value sit centred over each other. */
+
+[data-style="soft"] .rules-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+[data-style="soft"] .rules-table th,
+[data-style="soft"] .rules-table td {
+  padding: 10px 12px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  vertical-align: middle;
+}
+
+[data-style="soft"] .rules-table th:last-child,
+[data-style="soft"] .rules-table td:last-child { border-right: 0; }
+[data-style="soft"] .rules-table tbody tr:last-child td { border-bottom: 0; }
+
+[data-style="soft"] .rules-table thead th {
+  height: auto;
+  background: var(--bg);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The value inside the cell centres too, otherwise a centred header sits over
+   a left-aligned number. */
+[data-style="soft"] .rules-table input,
+[data-style="soft"] .rules-table select {
+  margin: 0 auto;
+  text-align: center;
+  text-align-last: center;
+  border-radius: 8px;
+}
+
+/* The remove-row button is an action, not a value: it stays put. */
+[data-style="soft"] .rules-table td.col-select { width: 44px; }
+
+/* ---------- Every table centred ----------
+   Header and value sit over each other in every column. `.grid td.num` sets
+   `text-align: right` and `.th-sort` is a flex row, so both need naming
+   explicitly - a bare `text-align: center` on the cell would lose to the
+   first and do nothing to the second. */
+
+[data-style="soft"] .grid th,
+[data-style="soft"] .grid td,
+[data-style="soft"] .grid th.num,
+[data-style="soft"] .grid td.num { text-align: center; }
+
+/* The sort control is the header's content, so it centres with it. */
+[data-style="soft"] .grid .th-sort,
+[data-style="soft"] .grid th.num .th-sort { justify-content: center; }
+
+/* Digits still line up under each other - centred, but not ragged. */
+[data-style="soft"] .grid td.num { font-variant-numeric: tabular-nums; }
+
+/* The filter under a centred header centres what you type into it. */
+[data-style="soft"] .grid .col-filter { text-align: center; }
+
+/* Two exceptions, both because they are controls rather than values: the
+   tick-box column and the row-action buttons keep their own placement. */
+[data-style="soft"] .grid th.col-select,
+[data-style="soft"] .grid td.col-select { text-align: center; }
+[data-style="soft"] .grid td.table-row-actions { text-align: center; }
+
+/* ---------- Scrollbars ----------
+   Left to the browser these render as light-grey OS chrome bolted onto a dark
+   page - including the blank square where a horizontal and a vertical bar
+   meet, which is what `scrollbar-corner` is for. Global, not per-page: a
+   scrollbar belongs to the theme. */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--chip) transparent;
+}
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+::-webkit-scrollbar-thumb {
+  /* A transparent border clipped to the padding box insets the thumb, so it
+     reads as floating in the gutter rather than filling it. */
+  background: var(--chip);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  background-clip: padding-box;
+}
+
+/* The table's own scroll area sits inside a rounded card, so its gutters get
+   the card's background rather than the page's. */
+[data-style="soft"] .table-scroll::-webkit-scrollbar-track,
+[data-style="soft"] .panel::-webkit-scrollbar-track { background: transparent; }
+
+/* A single control card: it keeps the card look without the grid stretching
+   it edge to edge, and its Mode picker sits beside its button rather than
+   above it now there is room. */
+[data-style="soft"] .control-single { max-width: 720px; margin-bottom: var(--space-5); }
+
+[data-style="soft"] .control-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+[data-style="soft"] .control-row .field { flex: 1; }
+[data-style="soft"] .control-row .btn-primary { width: auto; margin-top: 0; }
+
+/* The tag list is the widest cell in the strategy map and the one people
+   actually read, so it gets the room the fixed-width rule cells do not. */
+[data-style="soft"] .rules-table td.tag-list { min-width: 340px; }
+[data-style="soft"] .rules-table td.tag-list input { max-width: none; width: 100%; }
+[data-style="soft"] .rules-table input[readonly] {
+  background: var(--bg);
+  color: var(--muted);
+  cursor: default;
+}
+
+/* ---------- Tick list ----------
+   A set of choices read off the data, not typed. Wraps rather than scrolls:
+   the whole list should be takeable in at a glance, since what is ticked
+   decides who trades. */
+
+[data-style="soft"] .common-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: var(--space-4) 24px;
+  padding: var(--space-4) 20px;
+  align-items: start;
+}
+
+.tick-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 14px 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tick:hover { border-color: var(--accent); }
+.tick input { margin: 0; cursor: pointer; }
+
+/* Ticked reads as ticked without hunting for the box. */
+.tick:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+
+.tick:has(input:focus-visible) { box-shadow: var(--ring); }
+
+/* Stored but no longer present in All Users. Kept and kept ticked - dropping
+   it silently would change who trades. */
+.tick-missing { border-style: dashed; }
+.tick-missing em { font-style: normal; color: var(--muted); font-size: 11.5px; }
+
+@media (max-width: 820px) {
+  [data-style="soft"] .common-grid { grid-template-columns: 1fr; }
+  .tick { min-height: var(--control-h-touch); }
+}

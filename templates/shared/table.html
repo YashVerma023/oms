@@ -4,7 +4,20 @@
 
 {% block title %}{{ title }} &middot; OMP{% endblock %}
 
+{% block page_style %}soft{% endblock %}
+
 {% block content %}
+  {# Where you are, when a page sits inside a group. #}
+  {% if subtabs %}
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="{{ url_for('admin.table', page_key=nav_key) }}">
+        {{ table_pages[nav_key].title if nav_key in table_pages else nav_key }}
+      </a>
+      <span aria-hidden="true">/</span>
+      <span aria-current="page">{{ title }}</span>
+    </nav>
+  {% endif %}
+
   {# Pages that share a navbar tab show their siblings here. #}
   {% if subtabs %}
     <nav class="subtabs">
@@ -32,12 +45,19 @@
   {% endif %}
 
   <div class="toolbar">
-    <input class="search" id="globalSearch" type="search"
-           placeholder="Search..." autocomplete="off">
+    {# Wrapper carries the live result count and the clear button. #}
+    <div class="search-wrap">
+      <input class="search" id="globalSearch" type="search"
+             placeholder="Search this table&hellip;  ( / )" autocomplete="off"
+             aria-label="Search this table">
+      <span class="search-count" id="searchCount" aria-hidden="true"></span>
+      <button class="search-clear" id="searchClear" type="button"
+              aria-label="Clear search" hidden>&times;</button>
+    </div>
     {% if date_column %}
       {# No datalist: it replaces the native calendar with a suggestion list. #}
       <div class="tool date-pick" id="datePickWrap" title="Show data for a date">
-        <svg viewBox="0 0 24 24">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="3" y="5" width="18" height="16" rx="2"/>
           <path d="M3 10h18M8 3v4M16 3v4"/>
         </svg>
@@ -45,31 +65,31 @@
       </div>
     {% endif %}
     {% if new_url %}
-      <a class="tool icon" href="{{ new_url }}" title="Add a row">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      <a class="tool icon tint-amber" href="{{ new_url }}" title="Add a row">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
       </a>
     {% endif %}
-    <button class="tool icon" id="btnExport" type="button" title="Download CSV">
-      <svg viewBox="0 0 24 24"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
+    <button class="tool icon tint-teal" id="btnExport" type="button" title="Download CSV">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg>
     </button>
     {% if export_url %}
       {# Distinct from the plain CSV button: this one exports upload-format
          files per server, not the table as shown. #}
-      <button class="tool" id="btnExportFiles" type="button" title="{{ export_title }}">
-        <svg viewBox="0 0 24 24">
+      <button class="tool tint-violet" id="btnExportFiles" type="button" title="{{ export_title }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>
         </svg>
         <span>Server CSVs</span>
       </button>
     {% endif %}
-    <button class="tool icon" id="btnReload" type="button"
+    <button class="tool icon tint-blue" id="btnReload" type="button"
             title="Refresh data and recalculate derived columns">
-      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
     </button>
     {% if delete_url %}
       <button class="tool icon danger" id="btnDelete" type="button" disabled
               title="Delete selected rows">
-        <svg viewBox="0 0 24 24">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 7h16M10 4h4M6 7l1 13h10l1-13M10 11v6M14 11v6"/>
         </svg>
       </button>
@@ -87,7 +107,7 @@
               <th data-col="{{ col.name }}" class="{{ 'num' if col.type == 'number' }}">
                 <button class="th-sort" type="button" data-col="{{ col.name }}">
                   <span>{{ col.name }}</span>
-                  <svg class="sort-icon" viewBox="0 0 24 24">
+                  <svg class="sort-icon" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M8 10l4-4 4 4M8 14l4 4 4-4"/>
                   </svg>
                 </button>
@@ -104,12 +124,13 @@
                   <div class="choice" data-col="{{ col.name }}">
                     <button class="choice-btn" type="button">
                       <span class="choice-label">Select...</span>
-                      <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
                     </button>
                   </div>
                 {% else %}
                   {# A space filters to blanks, "/" to non-blanks - see title. #}
                   <input class="col-filter" type="search" data-col="{{ col.name }}"
+                         aria-label="Filter by {{ col.name }}"
                          data-type="{{ col.type }}" autocomplete="off"
                          placeholder="{{ '>10; <50; 10, 20' if col.type == 'number' else 'Search...' }}"
                          title="{{ 'Supports >10  <50  10-20  or plain text.' if col.type == 'number' else 'Contains match.' }}&#10;Type a space to show only blank rows.&#10;Type / to show only rows that have a value.">
