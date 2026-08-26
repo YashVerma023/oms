@@ -1,0 +1,85 @@
+# OMP - production stack.
+#
+#   cp .env.docker.example .env.docker      then fill it in
+#   docker compose --env-file .env.docker up -d --build
+#
+# The --env-file matters: compose would otherwise read .env, which points the
+# app at a localhost MySQL as root - right for `python app.py`, wrong here.
+#
+# Only the app publishes a port. MySQL stays on the internal network, so the
+# database is not reachable from outside the host at all.
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD in .env.docker}
+      MYSQL_DATABASE: ${DB_NAME:-omp}
+      MYSQL_USER: ${DB_USER:?set DB_USER in .env.docker - anything but root}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env.docker}
+    command:
+      # The portal stores rupee amounts as DECIMAL and compares user ids
+      # case-insensitively; these keep both behaving as the code expects.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      # Connections idle between morning runs; the pool pre-pings, but a long
+      # timeout means it rarely has to.
+      - --wait-timeout=28800
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      # The app waits on this, so it must mean "ready for queries", not
+      # "process started".
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      OMP_ENV: production
+      FLASK_DEBUG: "false"
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-omp}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      SECRET_KEY: ${SECRET_KEY:?generate one - see .env.docker.example}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      # Turn on once there is HTTPS in front, or the session cookie is
+      # dropped and nobody can sign in.
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      # Only used the first time the database is created.
+      DEFAULT_ADMIN_ROLE: ${DEFAULT_ADMIN_ROLE:-admin}
+      DEFAULT_ADMIN_NAME: ${DEFAULT_ADMIN_NAME:-admin}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-}
+      DEFAULT_SUPERADMIN_ROLE: ${DEFAULT_SUPERADMIN_ROLE:-superadmin}
+      DEFAULT_SUPERADMIN_NAME: ${DEFAULT_SUPERADMIN_NAME:-superadmin}
+      DEFAULT_SUPERADMIN_EMAIL: ${DEFAULT_SUPERADMIN_EMAIL:-}
+      DEFAULT_SUPERADMIN_PASSWORD: ${DEFAULT_SUPERADMIN_PASSWORD:-}
+    volumes:
+      # Written from Admin Controls. Without this, every rule edit is lost the
+      # next time the image is rebuilt.
+      - ./config:/app/config
+      - omp-logs:/app/logs
+      - omp-data:/app/data
+    ports:
+      # Bound to the loopback interface: put nginx or Caddy in front for TLS
+      # rather than exposing the app to the network directly.
+      - "127.0.0.1:8000:8000"
+
+volumes:
+  db-data:
+  omp-logs:
+  omp-data:

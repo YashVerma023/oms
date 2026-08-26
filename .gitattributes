@@ -1,0 +1,6 @@
+# The entrypoint runs inside a Linux container. Checked out with CRLF on
+# Windows it fails with "exec ./docker/entrypoint.sh: no such file or
+# directory" - the \r becomes part of the interpreter path.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
